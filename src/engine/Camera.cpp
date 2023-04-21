@@ -1,6 +1,6 @@
 #include "Camera.h"
 
-Camera::Camera(Window* window) {
+Engine::Camera::Camera(Engine::Window* window) {
 	position = glm::vec3(0);
 	view = glm::mat4(1);
 	orthographic = glm::mat4(1);
@@ -9,15 +9,15 @@ Camera::Camera(Window* window) {
 	this->window = window;
 }
 
-glm::mat4 Camera::getView() {
+glm::mat4 Engine::Camera::getView() {
 	return view;
 }
 
-glm::mat4 Camera::getOrthographic() {
+glm::mat4 Engine::Camera::getOrthographic() {
 	return orthographic;
 }
 
-void Camera::update()
+void Engine::Camera::update()
 {
 	view = glm::mat4(1);
 	view = glm::translate(view, -position);
@@ -30,7 +30,7 @@ void Camera::update()
 	}
 }
 
-void Camera::zoomIn(float factor)
+void Engine::Camera::zoomIn(float factor)
 {
 	targetZoom += factor;
 	targetZoom = std::max(std::min(targetZoom, 3.f), 0.6f);

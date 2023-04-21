@@ -1,6 +1,6 @@
 #include "Texture.h"
 
-Texture::Texture(const char* filename) {
+Engine::Texture::Texture(const char* filename) {
 	glGenTextures(1, &texture);
 
 	bind();
@@ -31,18 +31,18 @@ Texture::Texture(const char* filename) {
 	stbi_image_free(data);
 }
 
-Texture::~Texture()
+Engine::Texture::~Texture()
 {
 	glDeleteTextures(1, &texture);
 }
 
-void Texture::nearest()
+void Engine::Texture::nearest()
 {
 	bind();
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 }
 
-void Texture::bind() const {
+void Engine::Texture::bind() const {
 	glBindTexture(GL_TEXTURE_2D, texture);
 }

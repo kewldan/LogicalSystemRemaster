@@ -16,15 +16,9 @@ void main()
     if(gAlbedo.a == 0){
         if(vertex.state == 1){
             gAlbedo.rgb = vec3(0.33, 0.9, 0.27);
-            gAlbedo.rgb *= 2;
         }else{
             gAlbedo.rgb = vec3(0.92, 0.31, 0.2);
         }
     }
-
-    float brightness = dot(gAlbedo.rgb, vec3(0.2126, 0.7152, 0.0722));
-    if(brightness > 1.0 && vertex.state == 1)
-        gAlbedoHDR = vec4(gAlbedo.rgb, 1.0);
-    else
-        gAlbedoHDR = vec4(0.0, 0.0, 0.0, 1.0);
+    gAlbedoHDR = vec4(2 * gAlbedo.rgb * vertex.state * (1 - gAlbedo.a), 1.0);
 }

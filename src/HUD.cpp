@@ -1,6 +1,6 @@
 #include "HUD.h"
 
-HUD::HUD(Window* window) {
+HUD::HUD(Engine::Window* window) {
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGui::StyleColorsDark();

@@ -1,9 +1,9 @@
 ﻿#include "main.h"
 
-Window* window;
+Engine::Window* window;
 HUD* hud;
 BlockManager* blocks;
-Camera* camera;
+Engine::Camera* camera;
 RenderPipeline* pipeline;
 std::mutex mutex;
 double tickTime;
@@ -72,13 +72,13 @@ int main()
 	strcpy_s(saveFilename, 64, "");
 	strcpy_s(loadFilename, 64, "");
 
-	window = new Window(1280, 720, "Logical system");
+	window = new Engine::Window(1280, 720, "Logical system");
 
 	glfwSetKeyCallback(window->getId(), key_callback);
 	glfwSetMouseButtonCallback(window->getId(), mouse_button_callback);
 
 	hud = new HUD(window);
-	camera = new Camera(window);
+	camera = new Engine::Camera(window);
 	pipeline = new RenderPipeline("block", "blur", "final", "background", window->width, window->height);
 	io = &ImGui::GetIO();
 
@@ -102,7 +102,7 @@ int main()
 
 		int drawCalls = 0;
 		{
-			Shader* shader = pipeline->beginPass(camera);
+			Engine::Shader* shader = pipeline->beginPass(camera);
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D_ARRAY, blocks->atlas);
 

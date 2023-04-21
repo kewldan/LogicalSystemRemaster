@@ -35,10 +35,10 @@ RenderPipeline::RenderPipeline(const char* gShaderPath, const char* blurShaderPa
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		PLOGE << "Framebuffer not complete!";
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	gShader = new Shader(gShaderPath);
-	blurShader = new Shader(blurShaderPath);
-	finalShader = new Shader(finalShaderPath);
-	backgroundShader = new Shader(backgroundShaderPath);
+	gShader = new Engine::Shader(gShaderPath);
+	blurShader = new Engine::Shader(blurShaderPath);
+	finalShader = new Engine::Shader(finalShaderPath);
+	backgroundShader = new Engine::Shader(backgroundShaderPath);
 
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
@@ -89,7 +89,7 @@ void RenderPipeline::resize(int nw, int nh)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-Shader* RenderPipeline::beginPass(Camera* camera)
+Engine::Shader* RenderPipeline::beginPass(Engine::Camera* camera)
 {
 	glViewport(0, 0, w, h);
 	glBindFramebuffer(GL_FRAMEBUFFER, FBO);

@@ -4,11 +4,11 @@
 
 #include <iostream>
 #include <plog/Log.h>
-#include "Window.h"
+#include "engine/Window.h"
 #include "HUD.h"
 #include "BlockManager.h"
-#include "Camera.h"
-#include "Shader.h"
+#include "engine/Camera.h"
+#include "engine/Shader.h"
 #include <cmath>
 #include <thread>
 #include "RenderPipeline.h"

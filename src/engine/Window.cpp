@@ -1,6 +1,10 @@
 #include "Window.h"
 
-Window::Window(int w, int h, const char* title, bool notInitGlfw) {
+void Engine::error_callback(int code, const char* message) {
+	PLOGE << code << " | " << message;
+}
+
+Engine::Window::Window(int w, int h, const char* title, bool notInitGlfw) {
 	std::remove("latest.log");
 	plog::init(plog::debug, "latest.log");
 	plog::get()->addAppender(new plog::ColorConsoleAppender<plog::FuncMessageFormatter>());
@@ -8,12 +12,17 @@ Window::Window(int w, int h, const char* title, bool notInitGlfw) {
 	PLOGI << "Glfw version: " << glfwGetVersionString();
 
 	if (!notInitGlfw) {
-		initializeGlfw();
+		PLOG_INFO << "GLFW initialized";
+		glfwSetErrorCallback(Engine::error_callback);
+		if (!glfwInit())
+			exit(EXIT_FAILURE);
 	}
 
 	width = w;
 	height = h;
+	cursor = glm::vec<2, double>(0);
 
+	glfwDefaultWindowHints();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -36,7 +45,7 @@ Window::Window(int w, int h, const char* title, bool notInitGlfw) {
 	glDisable(GL_MULTISAMPLE);
 }
 
-void Window::setTitle(const char* title)
+void Engine::Window::setTitle(const char* title)
 {
 	glfwSetWindowTitle(window, title);
 }
@@ -45,28 +54,22 @@ static void error_callback(int error, const char* description) {
 	PLOG_ERROR << "[GLFW] " << error << " | " << description;
 }
 
-void Window::initializeGlfw() {
-	PLOG_INFO << "GLFW initialized";
-	glfwSetErrorCallback(error_callback);
-	if (!glfwInit())
-		exit(EXIT_FAILURE);
-}
-
-GLFWwindow* Window::getId() {
+GLFWwindow* Engine::Window::getId() {
 	return window;
 }
 
-Window::~Window() {
+Engine::Window::~Window() {
+	PLOGW << "W";
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
 
-void Window::setVsync(bool value)
+void Engine::Window::setVsync(bool value)
 {
 	glfwSwapInterval(value);
 }
 
-bool Window::update(bool* resized) {
+bool Engine::Window::update(bool* resized) {
 	glfwSwapBuffers(window);
 	glfwPollEvents();
 
@@ -79,32 +82,28 @@ bool Window::update(bool* resized) {
 	return !glfwWindowShouldClose(window);
 }
 
-void Window::hideCursor() {
+void Engine::Window::hideCursor() {
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
-void Window::showCursor() {
+void Engine::Window::showCursor() {
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 }
 
 
-void Window::setCursorPosition(int x, int y) {
-	glfwSetCursorPos(window, x, y);
+void Engine::Window::setCursorPosition(glm::vec2 position) {
+	glfwSetCursorPos(window, position.x, position.y);
 }
 
-glm::vec2 Window::getCursorPosition() {
+glm::vec2 Engine::Window::getCursorPosition() {
 	return static_cast<glm::vec2>(cursor);
 }
 
-bool Window::isKeyPressed(int key) {
+bool Engine::Window::isKeyPressed(int key) {
 	return glfwGetKey(window, key) == 1;
 }
 
-void Window::debugDraw(bool value) {
-	glPolygonMode(GL_FRONT_AND_BACK, value ? GL_LINE : GL_FILL);
-}
-
-void Window::reset() const {
+void Engine::Window::reset() const {
 	glViewport(0, 0, width, height);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }

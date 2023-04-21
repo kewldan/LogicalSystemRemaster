@@ -4,7 +4,7 @@
 #define SHADER_PART_GEOMETRY 2
 #define SHADER_PART_FRAGMENT 4
 
-Shader::Shader(const char* filename) {
+Engine::Shader::Shader(const char* filename) {
 	this->filename = filename;
 	shaderParts = 0;
 	program = glCreateProgram();
@@ -20,19 +20,19 @@ Shader::Shader(const char* filename) {
 	strcpy_s(path, 128, "./data/shaders/");
 	strcat_s(path, 128, filename);
 	strcat_s(path, 128, ".vert");
-	if (std::filesystem::exists(path)) {
+	if (File::exists(path)) {
 		vertex = loadShader(path, GL_VERTEX_SHADER, SHADER_PART_VERTEX);
 	}
 
 	path[strlen(path) - 5] = 0;
 	strcat_s(path, 128, ".frag");
-	if (std::filesystem::exists(path)) {
+	if (File::exists(path)) {
 		fragment = loadShader(path, GL_FRAGMENT_SHADER, SHADER_PART_FRAGMENT);
 	}
 
 	path[strlen(path) - 5] = 0;
 	strcat_s(path, 128, ".geom");
-	if (std::filesystem::exists(path)) {
+	if (File::exists(path)) {
 		geometry = loadShader(path, GL_GEOMETRY_SHADER, SHADER_PART_GEOMETRY);
 	}
 
@@ -52,11 +52,11 @@ Shader::Shader(const char* filename) {
 	delete[] path;
 }
 
-GLuint Shader::getProgramId() const {
+GLuint Engine::Shader::getProgramId() const {
 	return program;
 }
 
-GLint Shader::getAttribLocation(const char* name) const {
+GLint Engine::Shader::getAttribLocation(const char* name) const {
 	GLint value = glGetAttribLocation(program, name);
 	if (value == -1) {
 		PLOGE << "Attrib location in shader not found > " << name;
@@ -64,13 +64,10 @@ GLint Shader::getAttribLocation(const char* name) const {
 	return value;
 }
 
-int Shader::loadShader(const char* path, int type, char bitshift)
+int Engine::Shader::loadShader(const char* path, int type, const char bitshift)
 {
-	auto in = std::ifstream(path);
-	auto source = std::string((std::istreambuf_iterator<char>(in)),
-		std::istreambuf_iterator<char>());
 	int shader = glCreateShader(type);
-	const char* shader_source = source.c_str();
+	const char* shader_source = Engine::File::readString(path);
 	glShaderSource(shader, 1, &shader_source, nullptr);
 	glCompileShader(shader);
 
@@ -96,7 +93,7 @@ int Shader::loadShader(const char* path, int type, char bitshift)
 	return shader;
 }
 
-GLint Shader::getUniformLocation(const char* name) const {
+GLint Engine::Shader::getUniformLocation(const char* name) const {
 	if (uniforms->contains(name)) {
 		return (*uniforms)[name];
 	}
@@ -108,11 +105,11 @@ GLint Shader::getUniformLocation(const char* name) const {
 	return value;
 }
 
-void Shader::bind() {
+void Engine::Shader::bind() {
 	glUseProgram(program);
 }
 
-Shader::~Shader() {
+Engine::Shader::~Shader() {
 	if ((shaderParts & SHADER_PART_VERTEX) != 0) {
 		glDetachShader(program, vertex);
 	}
@@ -125,31 +122,31 @@ Shader::~Shader() {
 	glDeleteProgram(program);
 }
 
-void Shader::upload(const  char* name, int value) const {
+void Engine::Shader::upload(const char* name, int value) const {
 	glUniform1i(getUniformLocation(name), value);
 }
 
-void Shader::upload(const  char* name, float value) const {
+void Engine::Shader::upload(const  char* name, float value) const {
 	glUniform1f(getUniformLocation(name), value);
 }
 
-void Shader::upload(const  char* name, glm::vec2 value) const {
+void Engine::Shader::upload(const  char* name, glm::vec2 value) const {
 	glUniform2fv(getUniformLocation(name), 1, glm::value_ptr(value));
 }
 
-void Shader::upload(const  char* name, glm::vec3 value) const {
+void Engine::Shader::upload(const  char* name, glm::vec3 value) const {
 	glUniform3fv(getUniformLocation(name), 1, glm::value_ptr(value));
 }
 
-void Shader::upload(const  char* name, glm::vec4 value) const {
+void Engine::Shader::upload(const  char* name, glm::vec4 value) const {
 	glUniform4fv(getUniformLocation(name), 1, glm::value_ptr(value));
 }
 
-void Shader::upload(const  char* name, glm::mat4 value) const {
+void Engine::Shader::upload(const  char* name, glm::mat4 value) const {
 	glUniformMatrix4fv(getUniformLocation(name), 1, false, glm::value_ptr(value));
 }
 
-char* Shader::getElementName(const char* name, int index)
+char* Engine::Shader::getElementName(const char* name, int index)
 {
 	static char* n = new char[96];
 	strcpy_s(n, 96, name);
@@ -159,30 +156,18 @@ char* Shader::getElementName(const char* name, int index)
 	return n;
 }
 
-void Shader::uploadMat4(const char* name, float* value) const
+void Engine::Shader::uploadMat4(const char* name, float* value) const
 {
 	glUniformMatrix4fv(getUniformLocation(name), 1, false, value);
 }
 
-void Shader::bindUniformBlock(const char* name)
+void Engine::Shader::bindUniformBlock(const char* name)
 {
 	unsigned int bindingPoint = glGetUniformBlockIndex(program, name);
 	glUniformBlockBinding(program, bindingPoint, blockIndex++);
 }
 
-void Shader::upload(const  char* name, float x, float y) const {
-	glUniform2f(getUniformLocation(name), x, y);
-}
-
-void Shader::upload(const  char* name, float x, float y, float z) const {
-	glUniform3f(getUniformLocation(name), x, y, z);
-}
-
-void Shader::upload(const  char* name, float x, float y, float z, float w) const {
-	glUniform4f(getUniformLocation(name), x, y, z, w);
-}
-
-UniformBlock::UniformBlock(unsigned int size)
+Engine::UniformBlock::UniformBlock(unsigned int size)
 {
 	glGenBuffers(1, &block);
 	glBindBuffer(GL_UNIFORM_BUFFER, block);
@@ -193,7 +178,7 @@ UniformBlock::UniformBlock(unsigned int size)
 	offset = 0;
 }
 
-void UniformBlock::add(unsigned int size, void* value)
+void Engine::UniformBlock::add(unsigned int size, void* value)
 {
 	glBufferSubData(GL_UNIFORM_BUFFER, offset, size, value);
 	offset += size;

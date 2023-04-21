@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Shader.h"
+#include "engine/Shader.h"
 
 const float screenVertices[] = {
 	// positions        // texture Coords
@@ -15,11 +15,11 @@ public:
 	int w, h;
 	unsigned int pingpongFBO[2];
 	unsigned int pingpongBuffer[2];
-	Shader* gShader, *blurShader, *finalShader, * backgroundShader;
+	Engine::Shader* gShader, *blurShader, *finalShader, * backgroundShader;
 	unsigned int FBO, gAlbedo, gAlbedoHDR, VAO, VBO;
 	RenderPipeline(const char* gShaderPath, const char* blurShaderPath, const char* finalShaderPath, const char* backgroundShaderPath, int width, int height);
 	void resize(int nw, int nh);
-	Shader* beginPass(Camera* camera);
+	Engine::Shader* beginPass(Engine::Camera* camera);
 	void endPass(int amount, bool bloom);
 	void drawScreenQuad();
 };

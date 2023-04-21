@@ -219,41 +219,35 @@ void BlockManager::uploadBuffers(int count)
 
 bool BlockManager::save(const char* path)
 {
-	char* bin = new char[blocks.size() * 11];
-	int o = 0;
+	char* bin = new char[blocks.size() * 11 + 4];
+	int size = blocks.size();
+	memcpy(bin, &size, 4);
+
+	int o = 4;
 	for (auto it = blocks.begin(); it != blocks.end(); ++it) {
 		it->second->write(bin + o, it->first);
 		o += 11;
 	}
-	std::ofstream stream(path, std::ios::out | std::ios::binary);
-
-	if (!stream)
-		return 0;
-
-	stream.write(bin, blocks.size() * 11);
-	stream.close();
+	
+	bool ok = Engine::File::writeFile(path, bin, size * 11 + 4);
 	delete[] bin;
-
-	return stream.good();
+	return ok;
 }
 
 bool BlockManager::load(const char* path)
 {
-	std::ifstream stream(path, std::ios::out | std::ios::binary);
-	if (!stream)
-		return 0;
-	int size = (int)std::filesystem::file_size(path);
-	char* bin = new char[size];
-	stream.read(bin, size);
-	stream.close();
-
+	const char* bin = Engine::File::readFile(path);
+	int size = 0;
+	memcpy(&size, bin, 4);
 	blocks.clear();
 
 	long long pos = 0LL;
-	for (int i = 0; i < size / 11; i++) {
-		Block* block = new Block(bin + i * 11L, types, &pos);
+	for (int i = 0; i < size; i++) {
+		Block* block = new Block(bin + i * 11L + 4, types, &pos);
 		blocks[pos] = block;
 	}
+
+	delete[] bin;
 
 	return 1;
 }
