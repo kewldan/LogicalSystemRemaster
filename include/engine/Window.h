@@ -4,8 +4,6 @@
 #include <iostream>
 #include "glad/glad.h"
 
-#define GLFW_INCLUDE_NONE
-
 #include <GLFW/glfw3.h>
 #include <plog/Log.h>
 #include "plog/Initializers/RollingFileInitializer.h"
@@ -15,6 +13,7 @@
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 #include <chrono>
+#include "Texture.h"
 
 namespace Engine {
 	void error_callback(int code, const char* message);
@@ -47,5 +46,7 @@ namespace Engine {
 		glm::vec2 getCursorPosition();
 
 		bool isKeyPressed(int key);
+
+		void setIcon(const char* path);
 	};
 }

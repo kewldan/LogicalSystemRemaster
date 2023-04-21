@@ -15,14 +15,13 @@ Engine::Texture::Texture(const char* filename) {
 
 	unsigned char* data = stbi_load(f, &width, &height, &nrChannels, 0);
 	if (data) {
-		assert((void("Image channels must be 3 or 4!"), nrChannels == 3 || nrChannels == 4));
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, nrChannels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE,
 			data);
 		glGenerateMipmap(GL_TEXTURE_2D);
 
 		glObjectLabelBuild(GL_TEXTURE, texture, "Texture", filename);
 
-		PLOGI << "Texture [" << filename << "] loaded (" << width << "x" << height << ")";
+		logLoadedTexture(filename, width, height);
 	}
 	else {
 		PLOGE << "Failed to load texture [" << filename << "]";
@@ -45,4 +44,8 @@ void Engine::Texture::nearest()
 
 void Engine::Texture::bind() const {
 	glBindTexture(GL_TEXTURE_2D, texture);
+}
+
+unsigned char* Engine::Texture::loadImage(const char* path, int* w, int* h) {
+	return stbi_load(path, w, h, 0, 4);
 }

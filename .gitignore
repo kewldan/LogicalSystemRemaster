@@ -39,3 +39,4 @@ libraries/
 out/
 dev/
 *.manifest
+*.zip

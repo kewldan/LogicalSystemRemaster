@@ -3,8 +3,8 @@
 #include "glad/glad.h"
 #include <string>
 #include "plog/Log.h"
-
 #include "stb_image.h"
+#include "Logs.h"
 
 namespace Engine {
 	class Texture {
@@ -16,5 +16,6 @@ namespace Engine {
 
 		void nearest();
 		void bind() const;
+		static unsigned char* loadImage(const char* path, int* w, int* h);
 	};
 }

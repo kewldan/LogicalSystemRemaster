@@ -11,19 +11,17 @@ BlockManager::BlockManager()
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-	int width, height, nrChannels;
+	int width, height;
 
-	unsigned char* data = stbi_load("./data/textures/blocks.png", &width, &height, &nrChannels, 0);
+	unsigned char* data = Engine::Texture::loadImage("./data/textures/blocks.png", &width, &height);
 	if (data) {
-		assert((void("Image channels must be 3 or 4!"), nrChannels == 3 || nrChannels == 4));
 		glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA,
 			32, 32, 15, 0,
 			GL_RGBA, GL_UNSIGNED_BYTE, data);
 
 
 		glObjectLabelBuild(GL_TEXTURE, atlas, "Texture", "blocks.png");
-
-		PLOGI << "Texture [blocks.png] loaded (" << width << "x" << height << ")";
+		logLoadedTexture("blocks.png", width, height);
 	}
 	else {
 		PLOGE << "Failed to load texture [blocks.png]";

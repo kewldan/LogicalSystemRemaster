@@ -1,5 +1,6 @@
 #include "Window.h"
 
+
 void Engine::error_callback(int code, const char* message) {
 	PLOGE << code << " | " << message;
 }
@@ -8,11 +9,12 @@ Engine::Window::Window(int w, int h, const char* title, bool notInitGlfw) {
 	std::remove("latest.log");
 	plog::init(plog::debug, "latest.log");
 	plog::get()->addAppender(new plog::ColorConsoleAppender<plog::FuncMessageFormatter>());
+	PLOGI << "<< LOADING LIBRARIES >>";
 	PLOGI << "ImGui version: " << ImGui::GetVersion();
 	PLOGI << "Glfw version: " << glfwGetVersionString();
 
 	if (!notInitGlfw) {
-		PLOG_INFO << "GLFW initialized";
+		PLOG_INFO << "[INTERNAL] GLFW initialized";
 		glfwSetErrorCallback(Engine::error_callback);
 		if (!glfwInit())
 			exit(EXIT_FAILURE);
@@ -29,7 +31,7 @@ Engine::Window::Window(int w, int h, const char* title, bool notInitGlfw) {
 
 	window = glfwCreateWindow(w, h, title, nullptr, nullptr);
 	if (!window) {
-		PLOG_FATAL << "Window can not be initialized";
+		PLOG_FATAL << "[INTERNAL] Window can not be initialized";
 		glfwTerminate();
 		exit(EXIT_FAILURE);
 	}
@@ -37,7 +39,7 @@ Engine::Window::Window(int w, int h, const char* title, bool notInitGlfw) {
 
 	if (!notInitGlfw) {
 		gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-		PLOGI << "GLAD loaded";
+		PLOGI << "[INTERNAL] GLAD loaded";
 	}
 
 	glEnable(GL_DEPTH_TEST);
@@ -106,4 +108,13 @@ bool Engine::Window::isKeyPressed(int key) {
 void Engine::Window::reset() const {
 	glViewport(0, 0, width, height);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void Engine::Window::setIcon(const char* path) {
+	GLFWimage image{};
+	image.pixels = Engine::Texture::loadImage(path, &image.width, &image.height);
+	if (image.pixels) {
+		glfwSetWindowIcon(window, 1, &image);
+	}
+	stbi_image_free(image.pixels);
 }

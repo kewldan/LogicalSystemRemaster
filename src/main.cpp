@@ -1,7 +1,8 @@
-﻿#include "main.h"
+﻿#define STB_IMAGE_IMPLEMENTATION
+#include "main.h"
 
 Engine::Window* window;
-HUD* hud;
+Engine::HUD* hud;
 BlockManager* blocks;
 Engine::Camera* camera;
 RenderPipeline* pipeline;
@@ -73,11 +74,14 @@ int main()
 	strcpy_s(loadFilename, 64, "");
 
 	window = new Engine::Window(1280, 720, "Logical system");
+	window->setIcon("./data/icons/icon.png");
 
 	glfwSetKeyCallback(window->getId(), key_callback);
 	glfwSetMouseButtonCallback(window->getId(), mouse_button_callback);
 
-	hud = new HUD(window);
+	PLOGI << "<< LOADING ASSETS >>";
+
+	hud = new Engine::HUD(window);
 	camera = new Engine::Camera(window);
 	pipeline = new RenderPipeline("block", "blur", "final", "background", window->width, window->height);
 	io = &ImGui::GetIO();
@@ -87,8 +91,8 @@ int main()
 	ImGui::MergeIconsWithLatestFont(16.f, false);
 
 	blocks = new BlockManager();
-
 	tickThread = std::thread(tick);
+	PLOGI << "<< STARING GAME LOOP >>";
 	while (window->update(&windowResized)) {
 		if (windowResized) {
 			pipeline->resize(window->width, window->height);
@@ -100,7 +104,6 @@ int main()
 
 		window->reset();
 
-		int drawCalls = 0;
 		{
 			Engine::Shader* shader = pipeline->beginPass(camera);
 			glActiveTexture(GL_TEXTURE0);
@@ -125,12 +128,10 @@ int main()
 				if (j == BLOCK_BATCHING) {
 					blocks->uploadBuffers(j);
 					j = 0;
-					drawCalls++;
 				}
 			}
 			if (j > 0) {
 				blocks->uploadBuffers(j);
-				drawCalls++;
 			}
 			pipeline->endPass(16, bloom);
 		}
@@ -152,7 +153,6 @@ int main()
 				ImGui::NewLine();
 
 				ImGui::Text("FPS: %.1f", io->Framerate);
-				ImGui::Text("Draw calls: %d", drawCalls);
 				ImGui::Text("Tick: %.3fms", tickTime * 1000);
 				ImGui::Text("Blocks: %ld", blocks->blocks.size());
 
