@@ -8,6 +8,7 @@
 #include <iostream>
 #include <filesystem>
 #include "engine/File.h"
+#include "Window.h"
 
 const float quadVertices[] = {
 	0.0f, 1.0f, 0.f, 0.0f, 1.0f,
@@ -19,14 +20,22 @@ const float quadVertices[] = {
 typedef std::unordered_map<long long, Block*> Blocks;
 
 class BlockManager {
+private:
+	void thread_tick();
 public:
 	unsigned int atlas, VAO, * VBO;
 	glm::mat4* mvp;
 	glm::vec2* info;
 	Blocks blocks;
 	BlockType* types;
+	bool simulate, shouldStop;
+	int TPS;
+	double tickTime;
+	std::thread thread;
+	std::mutex mutex;
+	Engine::Window* window;
 
-	BlockManager();
+	BlockManager(Engine::Window* window);
 	void set(int x, int y, Block* block);
 	Block* get(int x, int y);
 	bool has(int x, int y);

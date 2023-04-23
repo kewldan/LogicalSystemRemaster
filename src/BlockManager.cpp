@@ -1,6 +1,6 @@
 #include "BlockManager.h"
 
-BlockManager::BlockManager()
+BlockManager::BlockManager(Engine::Window* window)
 {
 	glGenTextures(1, &atlas);
 
@@ -32,6 +32,11 @@ BlockManager::BlockManager()
 	mvp = new glm::mat4[BLOCK_BATCHING];
 	info = new glm::vec2[BLOCK_BATCHING];
 	VBO = new unsigned int[3];
+	simulate = true;
+	shouldStop = false;
+	this->window = window;
+	TPS = 8;
+	thread = std::thread(&BlockManager::thread_tick, this);
 
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(3, VBO);
@@ -248,4 +253,20 @@ bool BlockManager::load(const char* path)
 	delete[] bin;
 
 	return 1;
+}
+
+void BlockManager::thread_tick() {
+	static double lastUpdate = 0;
+	static double elapsed = 0;
+	while (!glfwWindowShouldClose(window->getId())) {
+		if (glfwGetTime() > lastUpdate + (1. / TPS) && simulate) {
+			elapsed = glfwGetTime();
+			mutex.lock();
+			update();
+			mutex.unlock();
+			tickTime = glfwGetTime() - elapsed;
+			lastUpdate = glfwGetTime();
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(2));
+	}
 }

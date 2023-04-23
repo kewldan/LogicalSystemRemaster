@@ -8,7 +8,9 @@ void Engine::error_callback(int code, const char* message) {
 Engine::Window::Window(int w, int h, const char* title, bool notInitGlfw) {
 	std::remove("latest.log");
 	plog::init(plog::debug, "latest.log");
+#ifndef NDEBUG
 	plog::get()->addAppender(new plog::ColorConsoleAppender<plog::FuncMessageFormatter>());
+#endif
 	PLOGI << "<< LOADING LIBRARIES >>";
 	PLOGI << "ImGui version: " << ImGui::GetVersion();
 	PLOGI << "Glfw version: " << glfwGetVersionString();
@@ -41,6 +43,12 @@ Engine::Window::Window(int w, int h, const char* title, bool notInitGlfw) {
 		gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 		PLOGI << "[INTERNAL] GLAD loaded";
 	}
+
+	const char* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+	PLOGI << "Renderer: " << renderer;
+
+	const char* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+	PLOGI << "OpenGL: " << version;
 
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);

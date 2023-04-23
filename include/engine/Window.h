@@ -7,8 +7,10 @@
 #include <GLFW/glfw3.h>
 #include <plog/Log.h>
 #include "plog/Initializers/RollingFileInitializer.h"
+#ifndef NDEBUG
+#include "plog/Initializers/ConsoleInitializer.h"
 #include "plog/Formatters/FuncMessageFormatter.h"
-#include "plog/Appenders/ColorConsoleAppender.h"
+#endif
 #include "imgui.h"
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>

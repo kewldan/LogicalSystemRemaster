@@ -122,7 +122,7 @@ void RenderPipeline::endPass(int amount, bool bloom)
 
 			drawScreenQuad();
 
-			horizontal = !horizontal;
+			horizontal ^= 1;
 			if (first_iteration)
 				first_iteration = false;
 		}

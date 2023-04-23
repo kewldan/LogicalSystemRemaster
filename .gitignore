@@ -40,3 +40,4 @@ out/
 dev/
 *.manifest
 *.zip
+*.bin

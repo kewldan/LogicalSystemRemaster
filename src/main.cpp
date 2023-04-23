@@ -1,20 +1,22 @@
 ﻿#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define GLFW_INCLUDE_NONE
 #include "main.h"
 
 Engine::Window* window;
 Engine::HUD* hud;
-BlockManager* blocks;
 Engine::Camera* camera;
+
+BlockManager* blocks;
 RenderPipeline* pipeline;
-std::mutex mutex;
-double tickTime;
-bool simulate = true, focused = true, windowResized = false, saveMenu = false, loadMenu = false, bloom = true;
-char mouseButtons;
-int currentBlock = 0, currentRotation = 0, targetTps = 8;
-char* saveFilename, * loadFilename;
+
 ImGuiIO* io;
 ImFontConfig font_cfg;
-std::thread tickThread;
+
+bool focused = true, windowResized = false, saveMenu = false, loadMenu = false, bloom = true;
+char mouseButtons;
+int currentBlock = 0, currentRotation = 0;
+char* saveFilename, * loadFilename;
 
 void mouse_button_callback(GLFWwindow* w, int button, int action, int mods)
 {
@@ -44,25 +46,10 @@ void key_callback(GLFWwindow* w, int key, int scancode, int action, int mods)
 		else if (key == GLFW_KEY_O && window->isKeyPressed(GLFW_KEY_LEFT_CONTROL)) {
 			loadMenu = true;
 		}
+
 		else if (key == GLFW_KEY_C && window->isKeyPressed(GLFW_KEY_LEFT_CONTROL)) {
 			blocks->blocks.clear();
 		}
-	}
-}
-
-void tick() {
-	static double lastUpdate = 0;
-	static double elapsed = 0;
-	while (!glfwWindowShouldClose(window->getId())) {
-		if (glfwGetTime() > lastUpdate + (1. / targetTps) && simulate) {
-			elapsed = glfwGetTime();
-			mutex.lock();
-			blocks->update();
-			mutex.unlock();
-			tickTime = glfwGetTime() - elapsed;
-			lastUpdate = glfwGetTime();
-		}
-		std::this_thread::sleep_for(std::chrono::milliseconds(2));
 	}
 }
 
@@ -90,8 +77,7 @@ int main()
 	io->Fonts->AddFontFromFileTTF("./data/fonts/tahoma.ttf", 17.f, &font_cfg);
 	ImGui::MergeIconsWithLatestFont(16.f, false);
 
-	blocks = new BlockManager();
-	tickThread = std::thread(tick);
+	blocks = new BlockManager(window);
 	PLOGI << "<< STARING GAME LOOP >>";
 	while (window->update(&windowResized)) {
 		if (windowResized) {
@@ -115,7 +101,7 @@ int main()
 			int LB = (int)camera->position.x - 16;
 			int RB = window->width + 16 + (int)camera->position.x;
 			int BB = (int)camera->position.y - 16;
-			int TB = (int)window->height + 16 + (int)camera->position.y;
+			int TB = window->height + 16 + (int)camera->position.y;
 			for (auto i = blocks->blocks.begin(); i != blocks->blocks.end(); ++i) {
 				int x = Block::X(i->first) * 32;
 				int y = Block::Y(i->first) * 32;
@@ -136,11 +122,30 @@ int main()
 			pipeline->endPass(16, bloom);
 		}
 
+		/*static bool f = false;
+		static ImVec2 start, delta;
+		if (ImGui::IsMouseDragging(ImGuiMouseButton_Right)) {
+			start = io->MouseClickedPos[ImGuiMouseButton_Right];
+			delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
+		}
+		else if(f) {
+			// Handle selection
+
+			Blocks b;
+
+			for (auto i = blocks->blocks.begin(); i != blocks->blocks.end(); ++i) {
+				int px = Block::X(i->first) * 32;
+				int py = Block::Y(i->first) * 32;
+				if (px > start.x - 16 && px < start.x + delta.x + 16 && py > start.y - 16 && py < start.y + delta.y + 16) {
+					b[i->first] = i->second;
+				}
+			}
+			//TODO: 
+		}
+		f = ImGui::IsMouseDragging(ImGuiMouseButton_Right);*/
+
 		hud->begin();
 		ImGui::SetNextWindowPos(ImVec2(15, 15), ImGuiCond_Once);
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.f);
-		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.f);
-
 		static bool show_debugMenu = true;
 		if (show_debugMenu) {
 			ImGui::SetNextWindowPos(ImVec2(15, 15), ImGuiCond_Once);
@@ -149,28 +154,9 @@ int main()
 			if (ImGui::Begin("##Debug overlay", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
 				ImGuiWindowFlags_NoFocusOnAppearing |
 				ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove)) {
-				ImGui::Text("Logical System");
-				ImGui::NewLine();
-
 				ImGui::Text("FPS: %.1f", io->Framerate);
-				ImGui::Text("Tick: %.3fms", tickTime * 1000);
+				ImGui::Text("Tick: %.3fms", blocks->tickTime * 1000.);
 				ImGui::Text("Blocks: %ld", blocks->blocks.size());
-
-				ImGui::NewLine();
-				ImGui::Text("Position: X: %.1f, Y: %.1f", camera->position.x, camera->position.y);
-				ImGui::Text("Zoom: %.1f", camera->zoom);
-				ImGui::Text("Camera viewport: %dx%d", static_cast<int>(window->width * 2 * camera->zoom - window->width), static_cast<int>(window->height * 2 * camera->zoom - window->height));
-				ImGui::Text("Viewport: %dx%d", window->width, window->height);
-
-				ImGui::NewLine();
-				ImGui::Text("Block position: %d %d", blockX, blockY);
-				if (blocks->has(blockX, blockY)) {
-					Block* block = blocks->get(blockX, blockY);
-					ImGui::Text("Block: T%d A%d R%d", block->type->id, block->active, block->rotation);
-				}
-				else {
-					ImGui::Text("Block: null");
-				}
 #ifndef NDEBUG
 				ImGui::Text("Debug build: %s - %s", __DATE__, __TIME__);
 #endif  
@@ -179,7 +165,7 @@ int main()
 		}
 
 		focused = false;
-		ImGui::SetNextWindowPos(ImVec2(15, 400), ImGuiCond_Once);
+		ImGui::SetNextWindowPos(ImVec2(15, 200), ImGuiCond_Once);
 		if (ImGui::Begin("Simulation", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_MenuBar)) {
 			focused |= ImGui::IsWindowHovered();
 			focused |= ImGui::IsWindowFocused();
@@ -210,8 +196,8 @@ int main()
 				}
 				ImGui::EndMenuBar();
 			}
-			ImGui::Checkbox("Play", &simulate);
-			ImGui::SliderInt("TPS", &targetTps, 1, 64);
+			ImGui::Checkbox("Play", &blocks->simulate);
+			ImGui::SliderInt("TPS", &blocks->TPS, 1, 64);
 			ImGui::Combo("Block", &currentBlock, "Wire\0Wire right\0Wire left\0Wire side\0Wire all side\0Wire 2\0Wire 3\0Not\0And\0Nand\0Xor\0Nxor\0Button\0Timer\0Light");
 			if (ImGui::IsItemHovered()) {
 				ImGui::BeginTooltip();
@@ -270,18 +256,12 @@ int main()
 			}
 			ImGui::End();
 		}
-		ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(43.f / 255.f, 43.f / 255.f, 43.f / 255.f, 100.f / 255.f));
-		ImGui::RenderNotifications();
-		ImGui::PopStyleColor(1);
-		ImGui::PopStyleVar(2);
-
 		hud->end();
-
 
 		if (!focused) {
 			float delta = io->DeltaTime;
 			float cameraZoomSq = camera->zoom * camera->zoom;
-			float cameraSpeed = 500.f * cameraZoomSq * delta;
+			float cameraSpeed = 500.f * cameraZoomSq * delta * (window->isKeyPressed(GLFW_KEY_LEFT_SHIFT) + 1);
 			if (window->isKeyPressed(GLFW_KEY_A)) {
 				camera->position.x -= cameraSpeed;
 			}
@@ -319,6 +299,7 @@ int main()
 			}
 		}
 	}
-	tickThread.join();
+	blocks->shouldStop = true;
+	blocks->thread.join();
 	return 0;
 }

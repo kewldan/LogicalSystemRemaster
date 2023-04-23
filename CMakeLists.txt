@@ -2,7 +2,6 @@
 project ("LogicalSystem")
 
 add_definitions(-DBLOCK_BATCHING=2048)
-add_definitions(-DGLFW_INCLUDE_NONE)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
@@ -32,6 +31,13 @@ file(GLOB PROJECT_SRCS
        "include/*.h" "src/*.cpp"
 )
 
-add_executable (${PROJECT_NAME} ${ENGINE_SRCS} ${PROJECT_SRCS} ${IMGUI_SOURCES} "${LIBRARIES_PATH}/glad/src/glad.c" "${LIBRARIES_PATH}/stb/include/stb_image.h")
+set(APP_ICON_RESOURCE_WINDOWS "${CMAKE_CURRENT_SOURCE_DIR}/appicon.rc")
+
+add_executable (${PROJECT_NAME} ${ENGINE_SRCS} ${PROJECT_SRCS} ${IMGUI_SOURCES} "${LIBRARIES_PATH}/glad/src/glad.c" "${LIBRARIES_PATH}/stb/include/stb_image.h" ${APP_ICON_RESOURCE_WINDOWS})
+
+IF(CMAKE_BUILD_TYPE STREQUAL "Release")
+	set_target_properties(${PROJECT_NAME} PROPERTIES 
+		LINK_FLAGS "/ENTRY:mainCRTStartup /SUBSYSTEM:WINDOWS")
+endif()
 
 target_link_libraries(${PROJECT_NAME} "glfw3" "opengl32" "gdi32")
