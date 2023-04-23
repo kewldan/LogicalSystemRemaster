@@ -1,6 +1,6 @@
 #pragma once
 
-#include "engine/Texture.h"
+#include "Texture.h"
 #include "glm/glm.hpp"
 #include <glm/gtx/transform.hpp>
 #include <functional>

@@ -7,15 +7,8 @@
 #include <fstream>
 #include <iostream>
 #include <filesystem>
-#include "engine/File.h"
+#include "File.h"
 #include "Window.h"
-
-const float quadVertices[] = {
-	0.0f, 1.0f, 0.f, 0.0f, 1.0f,
-	0.0f, 0.0f, 0.f, 0.0f, 0.0f,
-	1.0f, 1.0f, 0.f, 1.0f, 1.0f,
-	1.0f, 0.0f, 0.f, 1.0f, 0.0f,
-};
 
 typedef std::unordered_map<long long, Block*> Blocks;
 
@@ -35,7 +28,7 @@ public:
 	std::mutex mutex;
 	Engine::Window* window;
 
-	BlockManager(Engine::Window* window);
+	BlockManager(Engine::Window* window, const float vertices[], int count);
 	void set(int x, int y, Block* block);
 	Block* get(int x, int y);
 	bool has(int x, int y);

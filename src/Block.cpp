@@ -18,7 +18,7 @@ BlockType::BlockType(char id, std::function<bool(int)> func)
 
 glm::mat4 Block::getMVP(long long x, int y)
 {
-	mvp = glm::translate(glm::mat4(1), glm::vec3(x, y, -0.1f));
+	mvp = glm::translate(glm::mat4(1), glm::vec3(x, y, -0.2f));
 	mvp *= scaleMatrix;
 	if (rotation != 0) {
 		mvp = glm::rotate(mvp, glm::radians(rotation == 2 ? 180.f : (rotation == 1 ? -90.f : 90.f)), glm::vec3(0.f, 0.f, 1.f));

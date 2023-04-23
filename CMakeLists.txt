@@ -15,25 +15,23 @@ include_directories(
 	"${LIBRARIES_PATH}/glfw/include"
 	"${LIBRARIES_PATH}/glm/include"
 	"${LIBRARIES_PATH}/imgui"
-	"${PROJECT_SOURCE_DIR}/src"
     "${PROJECT_SOURCE_DIR}/include"
-	"${PROJECT_SOURCE_DIR}/src/engine"
-    "${PROJECT_SOURCE_DIR}/include/engine"
+    "${PROJECT_SOURCE_DIR}/engine/include"
 )
 
 link_directories("${CMAKE_CURRENT_SOURCE_DIR}/libraries/glfw/lib-vc2022")
 
 file(GLOB ENGINE_SRCS
-	"include/engine/*.h" "src/engine/*.cpp" 
+	"engine/include/*.h" "engine/src/*.cpp" 
 )
 
 file(GLOB PROJECT_SRCS
-       "include/*.h" "src/*.cpp"
+      "include/*.h" "src/*.cpp"
 )
 
 set(APP_ICON_RESOURCE_WINDOWS "${CMAKE_CURRENT_SOURCE_DIR}/appicon.rc")
 
-add_executable (${PROJECT_NAME} ${ENGINE_SRCS} ${PROJECT_SRCS} ${IMGUI_SOURCES} "${LIBRARIES_PATH}/glad/src/glad.c" "${LIBRARIES_PATH}/stb/include/stb_image.h" ${APP_ICON_RESOURCE_WINDOWS})
+add_executable (${PROJECT_NAME} ${ENGINE_SRCS} ${PROJECT_SRCS} ${IMGUI_SOURCES} "${LIBRARIES_PATH}/glad/src/glad.c" ${APP_ICON_RESOURCE_WINDOWS})
 
 IF(CMAKE_BUILD_TYPE STREQUAL "Release")
 	set_target_properties(${PROJECT_NAME} PROPERTIES 

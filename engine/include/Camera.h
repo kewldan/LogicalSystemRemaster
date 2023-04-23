@@ -9,6 +9,7 @@ namespace Engine {
 		glm::mat4 view, orthographic;
 		Window* window;
 		float targetZoom = 1.f;
+		bool zoomChanging;
 		double smoothZoomStart;
 	public:
 		float zoom = 1.f;
@@ -20,6 +21,10 @@ namespace Engine {
 		glm::mat4 getOrthographic();
 
 		void update();
+
+		void updateView();
+
+		void updateOrthographic();
 
 		void zoomIn(float factor);
 	};

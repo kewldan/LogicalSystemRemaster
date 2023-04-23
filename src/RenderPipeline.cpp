@@ -1,6 +1,6 @@
 #include "RenderPipeline.h"
 
-RenderPipeline::RenderPipeline(const char* gShaderPath, const char* blurShaderPath, const char* finalShaderPath, const char* backgroundShaderPath, int width, int height)
+RenderPipeline::RenderPipeline(const char* gShaderPath, const char* blurShaderPath, const char* finalShaderPath, const char* backgroundShaderPath, const char* selectionShaderPath, int width, int height)
 {
 	w = width;
 	h = height;
@@ -39,12 +39,23 @@ RenderPipeline::RenderPipeline(const char* gShaderPath, const char* blurShaderPa
 	blurShader = new Engine::Shader(blurShaderPath);
 	finalShader = new Engine::Shader(finalShaderPath);
 	backgroundShader = new Engine::Shader(backgroundShaderPath);
+	selectionShader = new Engine::Shader(selectionShaderPath);
 
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
-	glBindVertexArray(VAO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glGenVertexArrays(1, &screenVAO);
+	glGenBuffers(1, &screenVBO);
+	glBindVertexArray(screenVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, screenVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(screenVertices), &screenVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+
+	glGenVertexArrays(1, &quadVAO);
+	glGenBuffers(1, &quadVBO);
+	glBindVertexArray(quadVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(1);
@@ -106,6 +117,15 @@ Engine::Shader* RenderPipeline::beginPass(Engine::Camera* camera)
 	return gShader;
 }
 
+void RenderPipeline::drawSelection(Engine::Camera* camera, glm::vec2 position, glm::vec2 size)
+{
+	selectionShader->bind();
+	selectionShader->upload("proj", camera->getOrthographic());
+	glm::mat4 mvp = glm::translate(glm::mat4(1), glm::vec3(position, -0.1f));
+	selectionShader->upload("mvp", glm::scale(mvp, glm::vec3(size, 1.f)));
+	drawRectQuad();
+}
+
 void RenderPipeline::endPass(int amount, bool bloom)
 {
 	bool horizontal = true, first_iteration = true;
@@ -144,6 +164,12 @@ void RenderPipeline::endPass(int amount, bool bloom)
 
 void RenderPipeline::drawScreenQuad()
 {
-	glBindVertexArray(VAO);
+	glBindVertexArray(screenVAO);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+}
+
+void RenderPipeline::drawRectQuad()
+{
+	glBindVertexArray(quadVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }

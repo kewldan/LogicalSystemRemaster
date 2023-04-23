@@ -1,6 +1,6 @@
 #include "BlockManager.h"
 
-BlockManager::BlockManager(Engine::Window* window)
+BlockManager::BlockManager(Engine::Window* window, const float vertices[], int count)
 {
 	glGenTextures(1, &atlas);
 
@@ -43,7 +43,7 @@ BlockManager::BlockManager(Engine::Window* window)
 	glBindVertexArray(VAO);
 
 	glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, count, vertices, GL_STATIC_DRAW);
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(1);
@@ -240,6 +240,7 @@ bool BlockManager::save(const char* path)
 bool BlockManager::load(const char* path)
 {
 	const char* bin = Engine::File::readFile(path);
+	if (!bin) return 0;
 	int size = 0;
 	memcpy(&size, bin, 4);
 	blocks.clear();

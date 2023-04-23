@@ -41,3 +41,5 @@ dev/
 *.manifest
 *.zip
 *.bin
+*.ls
+*.ilk

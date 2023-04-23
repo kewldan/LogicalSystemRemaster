@@ -14,6 +14,7 @@ Engine::Window::Window(int w, int h, const char* title, bool notInitGlfw) {
 	PLOGI << "<< LOADING LIBRARIES >>";
 	PLOGI << "ImGui version: " << ImGui::GetVersion();
 	PLOGI << "Glfw version: " << glfwGetVersionString();
+	PLOGI << "Build: " << __TIME__ << " " << __DATE__;
 
 	if (!notInitGlfw) {
 		PLOG_INFO << "[INTERNAL] GLFW initialized";
