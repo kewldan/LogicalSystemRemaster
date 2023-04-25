@@ -100,7 +100,7 @@ void RenderPipeline::resize(int nw, int nh)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-Engine::Shader* RenderPipeline::beginPass(Engine::Camera* camera)
+void RenderPipeline::beginPass(Engine::Camera* camera, bool bloom, std::function<void(Engine::Shader*)> useFunction)
 {
 	glViewport(0, 0, w, h);
 	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
@@ -114,25 +114,14 @@ Engine::Shader* RenderPipeline::beginPass(Engine::Camera* camera)
 	gShader->upload("proj", camera->getOrthographic());
 	gShader->upload("view", camera->getView());
 	gShader->upload("tex", 0);
-	return gShader;
-}
 
-void RenderPipeline::drawSelection(Engine::Camera* camera, glm::vec2 position, glm::vec2 size)
-{
-	selectionShader->bind();
-	selectionShader->upload("proj", camera->getOrthographic());
-	glm::mat4 mvp = glm::translate(glm::mat4(1), glm::vec3(position, -0.1f));
-	selectionShader->upload("mvp", glm::scale(mvp, glm::vec3(size, 1.f)));
-	drawRectQuad();
-}
+	useFunction(gShader);
 
-void RenderPipeline::endPass(int amount, bool bloom)
-{
 	bool horizontal = true, first_iteration = true;
 	if (bloom) {
 		blurShader->bind();
 		blurShader->upload("image", 0);
-		for (int i = 0; i < amount; i++)
+		for (int i = 0; i < 12; i++)
 		{
 			glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
 			blurShader->upload("horizontal", horizontal);
@@ -160,6 +149,15 @@ void RenderPipeline::endPass(int amount, bool bloom)
 	finalShader->upload("mvp", glm::translate(glm::mat4(1), glm::vec3(0.f, 0.f, -0.5f)));
 
 	drawScreenQuad();
+}
+
+void RenderPipeline::drawSelection(Engine::Camera* camera, glm::vec2 position, glm::vec2 size)
+{
+	selectionShader->bind();
+	selectionShader->upload("proj", camera->getOrthographic());
+	glm::mat4 mvp = glm::translate(glm::mat4(1), glm::vec3(position, -0.1f));
+	selectionShader->upload("mvp", glm::scale(mvp, glm::vec3(size, 1.f)));
+	drawRectQuad();
 }
 
 void RenderPipeline::drawScreenQuad()

@@ -19,7 +19,7 @@ include_directories(
     "${PROJECT_SOURCE_DIR}/engine/include"
 )
 
-link_directories("${CMAKE_CURRENT_SOURCE_DIR}/libraries/glfw/lib-vc2022")
+link_directories("${LIBRARIES_PATH}/glfw/lib-vc2022")
 
 file(GLOB ENGINE_SRCS
 	"engine/include/*.h" "engine/src/*.cpp" 

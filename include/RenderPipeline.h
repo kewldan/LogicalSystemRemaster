@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Shader.h"
+#include <functional>
 
 const float screenVertices[] = {
 	// positions        // texture Coords
@@ -26,9 +27,8 @@ public:
 	unsigned int FBO, gAlbedo, gAlbedoHDR, screenVAO, screenVBO, quadVAO, quadVBO;
 	RenderPipeline(const char* gShaderPath, const char* blurShaderPath, const char* finalShaderPath, const char* backgroundShaderPath, const char* selectionShaderPath, int width, int height);
 	void resize(int nw, int nh);
-	Engine::Shader* beginPass(Engine::Camera* camera);
+	void beginPass(Engine::Camera* camera, bool bloom, std::function<void(Engine::Shader*)> useFunction);
 	void drawSelection(Engine::Camera* camera, glm::vec2 position, glm::vec2 size);
-	void endPass(int amount, bool bloom);
 	void drawScreenQuad();
 	void drawRectQuad();
 };
