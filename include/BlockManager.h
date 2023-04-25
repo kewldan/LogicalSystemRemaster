@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <filesystem>
+#include <mutex>
 #include "File.h"
 #include "Window.h"
 
@@ -24,6 +25,7 @@ public:
 	bool simulate, shouldStop;
 	int TPS;
 	double tickTime;
+	bool mvpChanged = false;
 	std::thread thread;
 	std::mutex mutex;
 	Engine::Window* window;
@@ -33,12 +35,15 @@ public:
 	Block* get(int x, int y);
 	bool has(int x, int y);
 	void erase(int x, int y);
+	void rotate(int x, int y, BlockRotation rotation);
 	int length();
 	void update();
 	void setActive(int x, int y);
 	void setActive(int x, int y, BlockRotation rotation);
 	void setActive(int x, int y, BlockRotation rotation, int l);
-	void uploadBuffers(int count);
+	void uploadMVPBuffer(int count);
+	void uploadInfoBuffer(int count);
+	void draw(int count);
 	bool save(const char* path);
 	bool load(const char* path);
 };

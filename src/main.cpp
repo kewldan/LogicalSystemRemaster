@@ -127,22 +127,48 @@ int main()
 			int RB = window->width + 16 + (int)camera->position.x;
 			int BB = (int)camera->position.y - 16;
 			int TB = window->height + 16 + (int)camera->position.y;
+
+			bool need = true;
+			if (blocks->length() < BLOCK_BATCHING && blocks->mvpChanged) {
+				for (auto i = blocks->blocks.begin(); i != blocks->blocks.end(); ++i) {
+					x = Block::X(i->first) << 5;
+					y = Block::Y(i->first) << 5;
+					if (x > LB && x < RB && y > BB && y < TB) {
+						blocks->mvp[j] = i->second->getMVP();
+						j++;
+					}
+				}
+				blocks->uploadMVPBuffer(j);
+				blocks->mvpChanged = false;
+				need = false;
+			}
+
 			for (auto i = blocks->blocks.begin(); i != blocks->blocks.end(); ++i) {
-				x = Block::X(i->first) << 5;
-				y = Block::Y(i->first) << 5;
-				if (x > LB && x < RB && y > BB && y < TB) {
-					blocks->mvp[j] = i->second->getMVP(x, y);
+				if (need) {
+					x = Block::X(i->first) << 5;
+					y = Block::Y(i->first) << 5;
+					if (x > LB && x < RB && y > BB && y < TB) {
+						blocks->mvp[j] = i->second->getMVP();
+						blocks->info[j] = glm::vec2(i->second->type->id, i->second->active ? 1.f : 0.f);
+						j++;
+					}
+				}
+				else {
 					blocks->info[j] = glm::vec2(i->second->type->id, i->second->active ? 1.f : 0.f);
 					j++;
 				}
 
 				if (j == BLOCK_BATCHING) {
-					blocks->uploadBuffers(j);
+					if (need) blocks->uploadMVPBuffer(j);
+					blocks->uploadInfoBuffer(j);
+					blocks->draw(j);
 					j = 0;
 				}
 			}
 			if (j > 0) {
-				blocks->uploadBuffers(j);
+				if (need) blocks->uploadMVPBuffer(j);
+				blocks->uploadInfoBuffer(j);
+				blocks->draw(j);
 			}
 
 			static bool f = false;
@@ -226,11 +252,11 @@ int main()
 				if (ImGui::BeginMenu("Help")) {
 					if (ImGui::MenuItem("Controls guide"))
 						controlsMenu = true;
-					if(ImGui::MenuItem("Itch.io"))
+					if (ImGui::MenuItem("Itch.io"))
 						ShellExecute(0, 0, "https://kewldan.itch.io/logical-system", 0, 0, SW_SHOW);
 					if (ImGui::MenuItem("Source code"))
 						ShellExecute(0, 0, "https://github.com/kewldan/LogicalSystemRemaster", 0, 0, SW_SHOW);
-					ImGui::MenuItem(std::format("Version: 1.0.4 ({})", __DATE__).c_str(), NULL, nullptr, false);
+					ImGui::MenuItem(std::format("Version: 1.0.5 ({})", __DATE__).c_str(), NULL, nullptr, false);
 					ImGui::MenuItem("Author: kewldan", NULL, nullptr, false);
 					ImGui::EndMenu();
 				}
@@ -373,7 +399,7 @@ int main()
 			static bool prev = false;
 			if ((mouseButtons >> GLFW_MOUSE_BUTTON_LEFT) & 1U && !window->isKeyPressed(GLFW_KEY_LEFT_CONTROL)) {
 				if (!blocks->has(blockX, blockY)) {
-					blocks->set(blockX, blockY, new Block(&blocks->types[currentBlock], static_cast<BlockRotation>(currentRotation)));
+					blocks->set(blockX, blockY, new Block(blockX, blockY, &blocks->types[currentBlock], static_cast<BlockRotation>(currentRotation)));
 				}
 				else if (prev == false) {
 					Block* block = blocks->get(blockX, blockY);
@@ -381,7 +407,7 @@ int main()
 						block->active ^= 1;
 					}
 					else {
-						block->rotation = rotateBlock(block->rotation, window->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1.f : 1.f);
+						blocks->rotate(blockX, blockY, rotateBlock(block->rotation, window->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1.f : 1.f));
 					}
 				}
 				prev = true;

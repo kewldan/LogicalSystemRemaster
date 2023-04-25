@@ -92,6 +92,7 @@ BlockManager::BlockManager(Engine::Window* window, const float vertices[], int c
 void BlockManager::set(int x, int y, Block* block)
 {
 	blocks[Block::TO_LONG(x, y)] = block;
+	mvpChanged = true;
 }
 
 Block* BlockManager::get(int x, int y)
@@ -109,8 +110,17 @@ bool BlockManager::has(int x, int y)
 
 void BlockManager::erase(int x, int y)
 {
-	if (has(x, y))
+	if (has(x, y)) {
 		blocks.erase(Block::TO_LONG(x, y));
+		mvpChanged = true;
+	}
+}
+
+void BlockManager::rotate(int x, int y, BlockRotation rotation) {
+	Block* block = get(x, y);
+	block->rotation = rotation;
+	block->updateMvp(x << 5, y << 5);
+	mvpChanged = true;
 }
 
 int BlockManager::length()
@@ -211,12 +221,20 @@ void BlockManager::setActive(int x, int y, BlockRotation rotation, int l)
 	}
 }
 
-void BlockManager::uploadBuffers(int count)
+void BlockManager::uploadMVPBuffer(int count)
+{
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::mat4) * count, mvp);
+}
+
+void BlockManager::uploadInfoBuffer(int count)
 {
 	glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2) * count, info);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::mat4) * count, mvp);
+}
+
+void BlockManager::draw(int count)
+{
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, count);
 }
 
