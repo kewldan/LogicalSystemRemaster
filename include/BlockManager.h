@@ -3,29 +3,40 @@
 #include "Block.h"
 #include <unordered_map>
 #include <thread>
-#include <omp.h>
-#include <fstream>
-#include <iostream>
-#include <filesystem>
 #include <mutex>
 #include "File.h"
 #include "Window.h"
 
 typedef std::unordered_map<long long, Block*> Blocks;
 
+struct BlockInfo {
+public:
+	float info;
+	glm::mat4 mvp;
+	BlockInfo(int id, bool active, bool selection, glm::mat4 mat) {
+		int i = id << 2;
+		if(active) i |= 2;
+		if(selection) i |= 1;
+		info = static_cast<float>(i);
+		this->mvp = mat;
+	}
+	BlockInfo() {
+		info = 0.f;
+		mvp = glm::mat4(1);
+	};
+};
+
 class BlockManager {
 private:
 	void thread_tick();
 public:
 	unsigned int atlas, VAO, * VBO;
-	glm::mat4* mvp;
-	glm::vec2* info;
+	BlockInfo* info;
 	Blocks blocks;
 	BlockType* types;
 	bool simulate, shouldStop;
 	int TPS;
 	double tickTime;
-	bool mvpChanged = false;
 	std::thread thread;
 	std::mutex mutex;
 	Engine::Window* window;
@@ -41,8 +52,6 @@ public:
 	void setActive(int x, int y);
 	void setActive(int x, int y, BlockRotation rotation);
 	void setActive(int x, int y, BlockRotation rotation, int l);
-	void uploadMVPBuffer(int count);
-	void uploadInfoBuffer(int count);
 	void draw(int count);
 	bool save(const char* path);
 	bool load(const char* path);

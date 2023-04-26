@@ -29,14 +29,12 @@ BlockManager::BlockManager(Engine::Window* window, const float vertices[], int c
 	}
 	stbi_image_free(data);
 
-	mvp = new glm::mat4[BLOCK_BATCHING];
-	info = new glm::vec2[BLOCK_BATCHING];
-	VBO = new unsigned int[3];
+	info = new BlockInfo[BLOCK_BATCHING];
+	VBO = new unsigned int[2];
 	simulate = true;
 	shouldStop = false;
 	this->window = window;
 	TPS = 8;
-	thread = std::thread(&BlockManager::thread_tick, this);
 
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(3, VBO);
@@ -50,20 +48,17 @@ BlockManager::BlockManager(Engine::Window* window, const float vertices[], int c
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 
 	glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec2) * BLOCK_BATCHING, NULL, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(BlockInfo) * BLOCK_BATCHING, NULL, GL_DYNAMIC_DRAW);
 	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, (void*)0);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4) * BLOCK_BATCHING, NULL, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(BlockInfo), (void*)0);
 	glEnableVertexAttribArray(3);
-	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(glm::vec4), (void*)0);
+	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(BlockInfo), (void*)sizeof(float));
 	glEnableVertexAttribArray(4);
-	glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(glm::vec4), (void*)(1 * sizeof(glm::vec4)));
+	glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(BlockInfo), (void*)(sizeof(float) + sizeof(glm::vec4)));
 	glEnableVertexAttribArray(5);
-	glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(glm::vec4), (void*)(2 * sizeof(glm::vec4)));
+	glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(BlockInfo), (void*)(sizeof(float) + 2 * sizeof(glm::vec4)));
 	glEnableVertexAttribArray(6);
-	glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(glm::vec4), (void*)(3 * sizeof(glm::vec4)));
+	glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(BlockInfo), (void*)(sizeof(float) + 3 * sizeof(glm::vec4)));
 
 	glVertexAttribDivisor(2, 1);
 	glVertexAttribDivisor(3, 1);
@@ -87,32 +82,32 @@ BlockManager::BlockManager(Engine::Window* window, const float vertices[], int c
 	types[12] = BlockType(0xC, [](int c) {return false; });
 	types[13] = BlockType(0xD, [](int c) {return c > 0; });
 	types[14] = BlockType(0xE, [](int c) {return c > 0; });
+
+	thread = std::thread(&BlockManager::thread_tick, this);
 }
 
 void BlockManager::set(int x, int y, Block* block)
 {
-	blocks[Block::TO_LONG(x, y)] = block;
-	mvpChanged = true;
+	blocks[Block_TO_LONG(x, y)] = block;;
 }
 
 Block* BlockManager::get(int x, int y)
 {
 	if (has(x, y))
-		return blocks[Block::TO_LONG(x, y)];
+		return blocks[Block_TO_LONG(x, y)];
 	else
 		return nullptr;
 }
 
 bool BlockManager::has(int x, int y)
 {
-	return blocks.contains(Block::TO_LONG(x, y));
+	return blocks.contains(Block_TO_LONG(x, y));
 }
 
 void BlockManager::erase(int x, int y)
 {
 	if (has(x, y)) {
-		blocks.erase(Block::TO_LONG(x, y));
-		mvpChanged = true;
+		blocks.erase(Block_TO_LONG(x, y));
 	}
 }
 
@@ -120,7 +115,6 @@ void BlockManager::rotate(int x, int y, BlockRotation rotation) {
 	Block* block = get(x, y);
 	block->rotation = rotation;
 	block->updateMvp(x << 5, y << 5);
-	mvpChanged = true;
 }
 
 int BlockManager::length()
@@ -132,8 +126,8 @@ void BlockManager::update()
 {
 	for (auto it = blocks.begin(); it != blocks.end(); ++it) {
 		Block* block = it->second;
-		int x = Block::X(it->first);
-		int y = Block::Y(it->first);
+		int x = Block_X(it->first);
+		int y = Block_Y(it->first);
 		BlockRotation r = block->rotation;
 
 		if (!block->active) { // Not family
@@ -221,20 +215,10 @@ void BlockManager::setActive(int x, int y, BlockRotation rotation, int l)
 	}
 }
 
-void BlockManager::uploadMVPBuffer(int count)
-{
-	glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::mat4) * count, mvp);
-}
-
-void BlockManager::uploadInfoBuffer(int count)
-{
-	glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2) * count, info);
-}
-
 void BlockManager::draw(int count)
 {
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(BlockInfo) * count, info);
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, count);
 }
 

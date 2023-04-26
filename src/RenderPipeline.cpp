@@ -100,21 +100,27 @@ void RenderPipeline::resize(int nw, int nh)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void RenderPipeline::beginPass(Engine::Camera* camera, bool bloom, std::function<void(Engine::Shader*)> useFunction)
+void RenderPipeline::beginPass(Engine::Camera* camera, bool bloom, unsigned int atlas, unsigned int blockVao, std::function<void(Engine::Shader*)> useFunction)
 {
 	glViewport(0, 0, w, h);
 	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	backgroundShader->bind();
-	backgroundShader->upload("mvp", glm::translate(glm::mat4(1), glm::vec3(0.f, 0.f, -0.3f)));
-	backgroundShader->upload("offset", glm::vec2(camera->position.x, camera->position.y));
+	static const glm::mat4 backgroundMvp = glm::translate(glm::mat4(1), glm::vec3(0.f, 0.f, -0.3f));
+	backgroundShader->upload("mvp", backgroundMvp);
+	backgroundShader->upload("offset", glm::vec2(camera->position));
 	drawScreenQuad();
 	gShader->bind();
 	gShader->upload("proj", camera->getOrthographic());
 	gShader->upload("view", camera->getView());
 	gShader->upload("tex", 0);
+	gShader->upload("selectionColor", glm::vec3(1.5));
 
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, atlas);
+
+	glBindVertexArray(blockVao);
 	useFunction(gShader);
 
 	bool horizontal = true, first_iteration = true;
@@ -146,7 +152,8 @@ void RenderPipeline::beginPass(Engine::Camera* camera, bool bloom, std::function
 	finalShader->upload("bloom", bloom);
 	finalShader->upload("scene", 0);
 	finalShader->upload("bloomBlur", 1);
-	finalShader->upload("mvp", glm::translate(glm::mat4(1), glm::vec3(0.f, 0.f, -0.5f)));
+	static const glm::mat4 finalMvp = glm::translate(glm::mat4(1), glm::vec3(0.f, 0.f, -0.5f));
+	finalShader->upload("mvp", finalMvp);
 
 	drawScreenQuad();
 }

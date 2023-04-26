@@ -9,12 +9,11 @@ Engine::Camera* camera;
 
 BlockManager* blocks;
 RenderPipeline* pipeline;
-Blocks selected;
 
 ImGuiIO* io;
 ImFontConfig font_cfg;
 
-bool focused = true, windowResized = false, saveMenu = false, loadMenu = false, bloom = true, controlsMenu = false;
+bool focused = true, windowResized = false, saveMenu = false, bloom = true, controlsMenu = false;
 char mouseButtons;
 int currentBlock = 0, currentRotation = 0;
 char* saveFilename;
@@ -62,14 +61,19 @@ void key_callback(GLFWwindow* w, int key, int scancode, int action, int mods)
 				saveMenu = true;
 			}
 			else if (key == GLFW_KEY_O) {
-				loadMenu = true;
+				loadDialog.Open();
 			}
 			else if (key == GLFW_KEY_C) {
 				offsets = glm::vec2(blockX, blockY);
 			}
 			else if (key == GLFW_KEY_V) {
-				for (auto i = selected.begin(); i != selected.end(); ++i) {
-					blocks->blocks[Block::TO_LONG(Block::X(i->first) + blockX - offsets.x, Block::Y(i->first) + blockY - offsets.y)] = new Block(*i->second);
+				int bx, by;
+				for (auto i = blocks->blocks.begin(); i != blocks->blocks.end(); ++i) {
+					if (i->second->selected) {
+						bx = Block_X(i->first) + blockX - offsets.x;
+						by = Block_Y(i->first) + blockY - offsets.y;
+						blocks->set(bx, by, new Block(bx, by, i->second->type, i->second->rotation));
+					}
 				}
 			}
 		}
@@ -116,58 +120,25 @@ int main()
 
 		window->reset();
 
-		pipeline->beginPass(camera, bloom, [](Engine::Shader* shader) {
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D_ARRAY, blocks->atlas);
-
-			glBindVertexArray(blocks->VAO);
-
+		pipeline->beginPass(camera, bloom, blocks->atlas, blocks->VAO, [](Engine::Shader* shader) {
 			int j = 0, x, y;
 			int LB = (int)camera->position.x - 16;
 			int RB = window->width + 16 + (int)camera->position.x;
 			int BB = (int)camera->position.y - 16;
 			int TB = window->height + 16 + (int)camera->position.y;
-
-			bool need = true;
-			if (blocks->length() < BLOCK_BATCHING && blocks->mvpChanged) {
-				for (auto i = blocks->blocks.begin(); i != blocks->blocks.end(); ++i) {
-					x = Block::X(i->first) << 5;
-					y = Block::Y(i->first) << 5;
-					if (x > LB && x < RB && y > BB && y < TB) {
-						blocks->mvp[j] = i->second->getMVP();
-						j++;
-					}
-				}
-				blocks->uploadMVPBuffer(j);
-				blocks->mvpChanged = false;
-				need = false;
-			}
-
 			for (auto i = blocks->blocks.begin(); i != blocks->blocks.end(); ++i) {
-				if (need) {
-					x = Block::X(i->first) << 5;
-					y = Block::Y(i->first) << 5;
+					x = Block_X(i->first) << 5;
+					y = Block_Y(i->first) << 5;
 					if (x > LB && x < RB && y > BB && y < TB) {
-						blocks->mvp[j] = i->second->getMVP();
-						blocks->info[j] = glm::vec2(i->second->type->id, i->second->active ? 1.f : 0.f);
+						blocks->info[j] = BlockInfo(i->second->type->id, i->second->active, i->second->selected, i->second->getMVP());
 						j++;
 					}
-				}
-				else {
-					blocks->info[j] = glm::vec2(i->second->type->id, i->second->active ? 1.f : 0.f);
-					j++;
-				}
-
 				if (j == BLOCK_BATCHING) {
-					if (need) blocks->uploadMVPBuffer(j);
-					blocks->uploadInfoBuffer(j);
 					blocks->draw(j);
 					j = 0;
 				}
 			}
 			if (j > 0) {
-				if (need) blocks->uploadMVPBuffer(j);
-				blocks->uploadInfoBuffer(j);
 				blocks->draw(j);
 			}
 
@@ -184,18 +155,21 @@ int main()
 					pipeline->drawSelection(camera, glm::vec2(x, y), glm::abs(glm::vec2(delta.x, delta.y)));
 				}
 				else if (f) {
-					selected.clear();
+					int LB = min(start.x, start.x + delta.x) + camera->position.x;
+					int BB = min(window->height - start.y, window->height - start.y - delta.y) + camera->position.y;
 
+					int RB = LB + abs(delta.x);
+					int TB = BB + abs(delta.y);
+					int count = 0;
 					for (auto i = blocks->blocks.begin(); i != blocks->blocks.end(); ++i) {
-						int px = Block::X(i->first) << 5;
-						int py = Block::Y(i->first) << 5;
-						if (px > start.x - 16 && px < start.x + delta.x + 16 && py > start.y - 16 && py < start.y + delta.y + 16) {
-							selected[i->first] = i->second;
-						}
+						int px = Block_X(i->first) << 5;
+						int py = Block_Y(i->first) << 5;
+						i->second->selected = px > LB && px < RB && py > BB && py < TB;
+						count += i->second->selected;
 					}
 
 					ImGuiToast toast(ImGuiToastType_Info, 2000);
-					toast.set_title("Selected %ld blocks", selected.size());
+					toast.set_title("Selected %ld blocks", count);
 					ImGui::InsertNotification(toast);
 				}
 			}
@@ -256,7 +230,7 @@ int main()
 						ShellExecute(0, 0, "https://kewldan.itch.io/logical-system", 0, 0, SW_SHOW);
 					if (ImGui::MenuItem("Source code"))
 						ShellExecute(0, 0, "https://github.com/kewldan/LogicalSystemRemaster", 0, 0, SW_SHOW);
-					ImGui::MenuItem(std::format("Version: 1.0.5 ({})", __DATE__).c_str(), NULL, nullptr, false);
+					ImGui::MenuItem(std::format("Version: 1.0.6 ({})", __DATE__).c_str(), NULL, nullptr, false);
 					ImGui::MenuItem("Author: kewldan", NULL, nullptr, false);
 					ImGui::EndMenu();
 				}

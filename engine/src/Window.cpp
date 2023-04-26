@@ -54,6 +54,8 @@ Engine::Window::Window(int w, int h, const char* title, bool notInitGlfw) {
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glDisable(GL_MULTISAMPLE);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 void Engine::Window::setTitle(const char* title)
