@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cstdlib>
-#include <iostream>
 #include "glad/glad.h"
 
 #include <GLFW/glfw3.h>
@@ -18,7 +16,6 @@
 #include "imgui.h"
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
-#include <chrono>
 #include "Texture.h"
 
 namespace Engine {
@@ -27,8 +24,7 @@ namespace Engine {
     class Window {
     private:
         GLFWwindow *window;
-        glm::vec<2, double> cursor{};
-        bool firstUpdate = true;
+        bool resized;
     public:
         int width, height;
 
@@ -43,21 +39,13 @@ namespace Engine {
 
         void setTitle(const char *title);
 
+        bool isResized();
+
         void reset() const;
 
         GLFWwindow *getId();
 
-        bool update(bool *resized);
-
-        void hideCursor();
-
-        void showCursor();
-
-        void setCursorPosition(glm::vec2 position);
-
-        glm::vec2 getCursorPosition();
-
-        bool isKeyPressed(int key);
+        bool update();
 
         void setIcon(const char *path);
     };

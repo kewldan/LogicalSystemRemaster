@@ -82,7 +82,7 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
 }
 
 void BlockManager::set(int x, int y, Block *block) {
-    blocks[Block_TO_LONG(x, y)] = block;;
+    blocks[Block_TO_LONG(x, y)] = block;
 }
 
 Block *BlockManager::get(int x, int y) {
@@ -194,7 +194,7 @@ void BlockManager::setActive(int x, int y, BlockRotation rotation, int l) {
     }
 }
 
-void BlockManager::draw(int count) {
+void BlockManager::draw(int count) const {
     glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(BlockInfo) * count, info);
     glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, count);

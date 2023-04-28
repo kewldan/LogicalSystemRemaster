@@ -3,7 +3,6 @@
 Engine::Window::Window(int w, int h, const char *title) {
     width = w;
     height = h;
-    cursor = glm::vec<2, double>(0);
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -51,42 +50,15 @@ void Engine::Window::setVsync(bool value) {
     glfwSwapInterval(value);
 }
 
-bool Engine::Window::update(bool *resized) {
-    if (!firstUpdate) {
-        glfwSwapBuffers(window);
-    }else{
-        firstUpdate = false;
-    }
-
+bool Engine::Window::update() {
+    glfwSwapBuffers(window);
     glfwPollEvents();
 
     int lw = width, lh = height;
     glfwGetFramebufferSize(window, &width, &height);
-    *resized = (lw != width || lh != height);
+    resized = (lw != width || lh != height);
 
-    glfwGetCursorPos(window, &cursor.x, &cursor.y);
     return !glfwWindowShouldClose(window);
-}
-
-void Engine::Window::hideCursor() {
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-}
-
-void Engine::Window::showCursor() {
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-}
-
-
-void Engine::Window::setCursorPosition(glm::vec2 position) {
-    glfwSetCursorPos(window, position.x, position.y);
-}
-
-glm::vec2 Engine::Window::getCursorPosition() {
-    return static_cast<glm::vec2>(cursor);
-}
-
-bool Engine::Window::isKeyPressed(int key) {
-    return glfwGetKey(window, key) == GLFW_PRESS;
 }
 
 void Engine::Window::reset() const {
@@ -105,7 +77,7 @@ void Engine::Window::setIcon(const char *path) {
 
 void Engine::Window::init() {
     std::remove("latest.log");
-    plog::init(plog::verbose, "latest.log");
+    plog::init(plog::debug, "latest.log");
 #ifndef NDEBUG
     plog::get()->addAppender(new plog::ColorConsoleAppender<plog::FuncMessageFormatter>());
 #endif
@@ -122,4 +94,13 @@ void Engine::Window::init() {
 
 void Engine::Window::destroy() {
     glfwTerminate();
+}
+
+bool Engine::Window::isResized() {
+    if(resized) {
+        resized = false;
+        return true;
+    }else{
+        return false;
+    }
 }

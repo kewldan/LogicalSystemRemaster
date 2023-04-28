@@ -66,7 +66,7 @@ public:
 
     void setActive(int x, int y, BlockRotation rotation, int l);
 
-    void draw(int count);
+    void draw(int count) const;
 
     bool save(const char *path);
 

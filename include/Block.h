@@ -35,9 +35,9 @@ long long Block_TO_LONG(int x, int y);
 
 class Block {
 public:
-    int connections;
+    int connections{};
     BlockRotation rotation{};
-    bool active{}, selected;
+    bool active{}, selected{};
     BlockType *type;
     glm::mat4 mvp{};
 

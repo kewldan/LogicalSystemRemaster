@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="C++ OGL" pattern="file[LogicalSystem]:src//*||file[LogicalSystem]:include//*||file[LogicalSystem]:engine//*||file[LogicalSystem]:data/shaders//*||file:CMakeLists.txt" />
+</component>

@@ -2,9 +2,15 @@
 
 char *Engine::File::readFile(const char *path) {
     std::ifstream stream(path, std::ios::out | std::ios::binary);
-    if (!stream)
-        return 0;
+    if (!stream) {
+        PLOGW << "The requested file [" << path << "] does not exist";
+        return nullptr;
+    }
     int size = (int) std::filesystem::file_size(path);
+    if(!size){
+        PLOGW << "The requested file [" << path << "] does not exist";
+        return nullptr;
+    }
     char *bin = new char[size];
     stream.read(bin, size);
     stream.close();
@@ -24,8 +30,10 @@ bool Engine::File::exists(const char *path) {
 
 char *Engine::File::readString(const char *path) {
     std::ifstream stream(path, std::ios::out | std::ios::binary);
-    if (!stream)
-        return 0;
+    if (!stream) {
+        PLOGW << "The requested string [" << path << "] does not exist";
+        return nullptr;
+    }
     uintmax_t size = std::filesystem::file_size(path);
     char *bin = new char[size + 1ULL];
     stream.read(bin, size);
