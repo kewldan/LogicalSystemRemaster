@@ -8,13 +8,14 @@
 #include "Window.h"
 
 namespace Engine {
-	class HUD {
-	public:
-		HUD(Engine::Window* window);
-		~HUD();
+    class HUD {
+    public:
+        static void init(Engine::Window *window);
 
-		void begin();
+        static void destroy();
 
-		void end();
-	};
+        static void begin();
+
+        static void end();
+    };
 }

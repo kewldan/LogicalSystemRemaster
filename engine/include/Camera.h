@@ -5,27 +5,29 @@
 #include "Window.h"
 
 namespace Engine {
-	class Camera {
-		glm::mat4 view, orthographic;
-		Window* window;
-		float targetZoom = 1.f;
-		bool zoomChanging;
-		double smoothZoomStart;
-	public:
-		float zoom = 1.f;
-		glm::vec3 position;
-		Camera(Window* window);
+    class Camera {
+    private:
+        glm::mat4 view, orthographic;
+        Window *window;
+        float targetZoom = 1.f;
+        bool zoomChanging;
+        double smoothZoomStart;
+    public:
+        float zoom = 1.f;
+        glm::vec3 position;
 
-		glm::mat4 getView();
+        explicit Camera(Window *window);
 
-		glm::mat4 getOrthographic();
+        glm::mat4 getView();
 
-		void update();
+        glm::mat4 getOrthographic();
 
-		void updateView();
+        void update();
 
-		void updateOrthographic();
+        void updateView();
 
-		void zoomIn(float factor);
-	};
+        void updateOrthographic();
+
+        void zoomIn(float factor);
+    };
 }

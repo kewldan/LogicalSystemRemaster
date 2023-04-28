@@ -8,50 +8,55 @@
 #include "File.h"
 
 namespace Engine {
-	class UniformBlock {
-		unsigned int offset;
-	public:
-		unsigned int block;
-		UniformBlock(unsigned int size);
-		void add(unsigned int size, void* value);
-	};
+    class UniformBlock {
+        unsigned int offset;
+    public:
+        unsigned int block{};
 
-	typedef std::unordered_map<const char*, int> Uniforms;
+        explicit UniformBlock(unsigned int size);
 
-	class Shader {
-		unsigned int vertex, fragment, geometry, program, blockIndex;
-		Uniforms* uniforms;
-		int8_t shaderParts;
-		const char* filename;
+        void add(unsigned int size, void *value);
+    };
 
-		int getUniformLocation(const char* name) const;
+    typedef std::unordered_map<const char *, int> Uniforms;
 
-		int getAttribLocation(const char* name) const;
-		int loadShader(const char* path, int type, const char bitshift);
-	public:
-		Shader(const char* filename);
-		~Shader();
+    class Shader {
+        unsigned int vertex, fragment, geometry, program, blockIndex;
+        Uniforms *uniforms;
+        int8_t shaderParts;
+        const char *filename;
 
-		unsigned int getProgramId() const;
+        int getUniformLocation(const char *name) const;
 
-		void bind();
+        int getAttribLocation(const char *name) const;
 
-		void upload(const char* name, int value) const;
+        int loadShader(const char *path, int type, char bitshift);
 
-		void upload(const char* name, float value) const;
+    public:
+        explicit Shader(const char *filename);
 
-		void upload(const char* name, glm::vec2 value) const;
+        ~Shader();
 
-		void upload(const char* name, glm::vec3 value) const;
+        unsigned int getProgramId() const;
 
-		void upload(const char* name, glm::vec4 value) const;
+        void bind() const;
 
-		void upload(const char* name, glm::mat4 value) const;
+        void upload(const char *name, int value) const;
 
-		char* getElementName(const char* name, int index);
+        void upload(const char *name, float value) const;
 
-		void uploadMat4(const char* name, float* value) const;
+        void upload(const char *name, glm::vec2 value) const;
 
-		void bindUniformBlock(const char* name);
-	};
+        void upload(const char *name, glm::vec3 value) const;
+
+        void upload(const char *name, glm::vec4 value) const;
+
+        void upload(const char *name, glm::mat4 value) const;
+
+        static char *getElementName(const char *name, int index);
+
+        void uploadMat4(const char *name, float *value) const;
+
+        void bindUniformBlock(const char *name);
+    };
 }

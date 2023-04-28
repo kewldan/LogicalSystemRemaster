@@ -7,10 +7,14 @@
 #include <GLFW/glfw3.h>
 #include <plog/Log.h>
 #include "plog/Initializers/RollingFileInitializer.h"
+
 #ifndef NDEBUG
+
 #include "plog/Initializers/ConsoleInitializer.h"
 #include "plog/Formatters/FuncMessageFormatter.h"
+
 #endif
+
 #include "imgui.h"
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
@@ -18,37 +22,43 @@
 #include "Texture.h"
 
 namespace Engine {
-	void error_callback(int code, const char* message);
-	class Window {
-	private:
-		GLFWwindow* window;
-		glm::vec<2, double> cursor;
-	public:
-		int width, height;
-		Window(int w = 1280, int h = 720, const char* title = "Untitled", bool notInitGlfw = false);
+    void error_callback(int code, const char *message);
 
-		~Window();
+    class Window {
+    private:
+        GLFWwindow *window;
+        glm::vec<2, double> cursor{};
+        bool firstUpdate = true;
+    public:
+        int width, height;
 
-		void setVsync(bool value);
+        static void init();
+        static void destroy();
 
-		void setTitle(const char* title);
+        explicit Window(int w = 1280, int h = 720, const char *title = "Untitled");
 
-		void reset() const;
+        ~Window();
 
-		GLFWwindow* getId();
+        static void setVsync(bool value);
 
-		bool update(bool* resized);
+        void setTitle(const char *title);
 
-		void hideCursor();
+        void reset() const;
 
-		void showCursor();
+        GLFWwindow *getId();
 
-		void setCursorPosition(glm::vec2 position);
+        bool update(bool *resized);
 
-		glm::vec2 getCursorPosition();
+        void hideCursor();
 
-		bool isKeyPressed(int key);
+        void showCursor();
 
-		void setIcon(const char* path);
-	};
+        void setCursorPosition(glm::vec2 position);
+
+        glm::vec2 getCursorPosition();
+
+        bool isKeyPressed(int key);
+
+        void setIcon(const char *path);
+    };
 }
