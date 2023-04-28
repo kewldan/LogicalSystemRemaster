@@ -75,6 +75,14 @@ void paste() {
     ImGui::InsertNotification(toast);
 }
 
+void select_all() {
+    blocks->select_all();
+    selectedBlocks = blocks->length();
+    ImGuiToast toast(ImGuiToastType_Info, 2000);
+    toast.set_title("%d blocks selected", selectedBlocks);
+    ImGui::InsertNotification(toast);
+}
+
 void key_callback(GLFWwindow *w, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS) {
         if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9) {
@@ -84,6 +92,8 @@ void key_callback(GLFWwindow *w, int key, int scancode, int action, int mods) {
         } else if (key == GLFW_KEY_R) {
             playerInput.currentRotation = rotateBlock(playerInput.currentRotation,
                                                       input->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1 : 1);
+        } else if (key == GLFW_KEY_DELETE) {
+            blocks->delete_selected();
         } else if (input->isKeyPressed(GLFW_KEY_LEFT_CONTROL)) {
             if (key == GLFW_KEY_S) {
                 saveMenu = true;
@@ -95,6 +105,8 @@ void key_callback(GLFWwindow *w, int key, int scancode, int action, int mods) {
                 copy();
             } else if (key == GLFW_KEY_V) {
                 paste();
+            } else if (key == GLFW_KEY_A) {
+                select_all();
             }
         }
     }
@@ -247,10 +259,14 @@ int main() {
                 if (ImGui::BeginMenu("Edit")) {
                     if (ImGui::MenuItem("\xef\x83\x85 Copy", "Ctrl + C"))
                         copy();
-                    if (ImGui::MenuItem("\xef\x83\xaa  Paste", "Ctrl + V"))
+                    if (ImGui::MenuItem("\xef\x83\xaa Paste", "Ctrl + V"))
                         paste();
-                    if (ImGui::MenuItem("\xef\x83\x84  Cut", "Ctrl + X"))
+                    if (ImGui::MenuItem("\xef\x83\x84 Cut", "Ctrl + X"))
                         cut();
+                    if (ImGui::MenuItem("\xef\xa1\x8c Select all", "Ctrl + A"))
+                        select_all();
+                    if (ImGui::MenuItem("\xef\x87\xb8 Delete", "DEL"))
+                        blocks->delete_selected();
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Examples")) {
@@ -279,7 +295,7 @@ int main() {
                     if (ImGui::MenuItem("Source code"))
                         ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                      nullptr, SW_SHOW);
-                    ImGui::MenuItem(std::format("Version: 1.0.9 ({})", __DATE__).c_str(), nullptr, nullptr, false);
+                    ImGui::MenuItem(std::format("Version: 1.0.10 ({})", __DATE__).c_str(), nullptr, nullptr, false);
                     ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
                     ImGui::EndMenu();
                 }
@@ -293,7 +309,7 @@ int main() {
                 ImGui::EndTooltip();
             }
             ImGui::Combo("Block", &playerInput.currentBlock,
-                         "Wire\0Wire right\0Wire left\0Wire side\0Wire all side\0Wire 2\0Wire 3\0Not\0And\0Nand\0Xor\0Nxor\0Button\0Timer\0Light");
+                         "Wire straight\0Wire angled right\0Wire angled left\0Wire T\0Wire cross\0Wire 2\0Wire 3\0NOT\0AND\0NAND\0XOR\0NXOR\0Switch\0Clock\0Lamp");
             if (ImGui::IsItemHovered()) {
                 ImGui::BeginTooltip();
                 ImGui::Text("Use 0-9 for 0-9 elements\nand SHIFT for 10-14 elements");
@@ -444,7 +460,5 @@ int main() {
         }
     } while (window->update());
     blocks->thread.join();
-    delete window;
-    Engine::Window::destroy();
     return 0;
 }

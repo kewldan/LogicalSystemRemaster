@@ -277,17 +277,11 @@ void BlockManager::copy(int selected, int blockX, int blockY) {
 
     const std::string exportString = Base64::base64_encode(deflated, defstream.total_out);
     glfwSetClipboardString(window->getId(), exportString.c_str());
-
-    free(b);
-    free(deflated);
 }
 
 void BlockManager::cut(int selected, int blockX, int blockY) {
     copy(selected, blockX, blockY);
-    Blocks b = blocks;
-    for (auto &it: b) {
-        if (it.second->selected) blocks.erase(it.first);
-    }
+    delete_selected();
 }
 
 int BlockManager::paste(int blockX, int blockY) {
@@ -319,13 +313,24 @@ int BlockManager::paste(int blockX, int blockY) {
                 blocks[Block_TO_LONG(x, y)] = block;
                 block->updateMvp(x << 5, y << 5);
             }
-
             return count;
         } else {
             return -1;
         }
-        free(inflated);
     } else {
         return -1;
+    }
+}
+
+void BlockManager::select_all() {
+    for (auto &it: blocks) {
+        it.second->selected = true;
+    }
+}
+
+void BlockManager::delete_selected() {
+    Blocks b = blocks;
+    for (auto &it: b) {
+        if (it.second->selected) blocks.erase(it.first);
     }
 }

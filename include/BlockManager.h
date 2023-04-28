@@ -74,6 +74,10 @@ public:
 
     bool load(const char *path);
 
+    void select_all();
+
+    void delete_selected();
+
     void copy(int selected, int blockX, int blockY);
 
     int paste(int blockX, int blockY);
