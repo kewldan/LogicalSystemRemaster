@@ -32,7 +32,7 @@ public:
     void resize(int nw, int nh);
 
     void beginPass(Engine::Camera *camera, bool bloom, unsigned int atlas, unsigned int blockVao,
-                   const std::function<void(Engine::Shader *)>& useFunction);
+                   const std::function<void(Engine::Shader *)> &useFunction);
 
     void drawSelection(Engine::Camera *camera, glm::vec2 position, glm::vec2 size) const;
 

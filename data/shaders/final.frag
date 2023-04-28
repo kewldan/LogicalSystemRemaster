@@ -8,10 +8,10 @@ uniform sampler2D bloomBlur;
 uniform bool bloom;
 
 void main()
-{             
-    vec4 hdrColor = texture(scene, TexCoords);      
+{
+    vec4 hdrColor = texture(scene, TexCoords);
     vec4 bloomColor = texture(bloomBlur, TexCoords);
-    if(bloom)
-        hdrColor += bloomColor;
+    if (bloom)
+    hdrColor += bloomColor;
     FragColor = hdrColor;
 }

@@ -89,7 +89,7 @@ void RenderPipeline::resize(int nw, int nh) {
     glBindTexture(GL_TEXTURE_2D, gAlbedoHDR);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, NULL);
 
-    for (unsigned int i : pingpongBuffer) {
+    for (unsigned int i: pingpongBuffer) {
         glBindTexture(GL_TEXTURE_2D, i);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, NULL);
     }
@@ -98,7 +98,7 @@ void RenderPipeline::resize(int nw, int nh) {
 }
 
 void RenderPipeline::beginPass(Engine::Camera *camera, bool bloom, unsigned int atlas, unsigned int blockVao,
-                               const std::function<void(Engine::Shader *)>& useFunction) {
+                               const std::function<void(Engine::Shader *)> &useFunction) {
     glViewport(0, 0, w, h);
     glBindFramebuffer(GL_FRAMEBUFFER, FBO);
     glClearColor(0, 0, 0, 0);
@@ -106,6 +106,9 @@ void RenderPipeline::beginPass(Engine::Camera *camera, bool bloom, unsigned int 
     backgroundShader->bind();
     static const glm::mat4 backgroundMvp = glm::translate(glm::mat4(1), glm::vec3(0.f, 0.f, -0.3f));
     backgroundShader->upload("mvp", backgroundMvp);
+    backgroundShader->upload("horizontal", glm::vec2(camera->left, camera->right));
+    backgroundShader->upload("vertical", glm::vec2(camera->bottom, camera->top));
+    backgroundShader->upload("screen", glm::vec2(camera->window->width, camera->window->height));
     backgroundShader->upload("offset", glm::vec2(camera->position));
     drawScreenQuad();
     gShader->bind();

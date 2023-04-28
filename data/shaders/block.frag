@@ -1,7 +1,7 @@
 #version 330
 layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec4 gAlbedoHDR;
-  
+
 in Vertex {
     vec3 texCoord;
     float state;

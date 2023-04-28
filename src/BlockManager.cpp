@@ -114,7 +114,7 @@ int BlockManager::length() {
 
 void BlockManager::update() {
     const std::lock_guard<std::mutex> lock(mutex);
-    for (auto & it : blocks) {
+    for (auto &it: blocks) {
         Block *block = it.second;
         int x = Block_X(it.first);
         int y = Block_Y(it.first);
@@ -163,7 +163,7 @@ void BlockManager::update() {
         }
     }
 
-    for (auto & it : blocks) {
+    for (auto &it: blocks) {
         Block *block = it.second;
         if (block->type->id != 13 && block->type->id != 12) { // Except timer
             block->active = block->type->isActive(block->connections);
@@ -245,5 +245,87 @@ void BlockManager::thread_tick() {
             lastUpdate = glfwGetTime();
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+}
+
+void BlockManager::copy(int selected, int blockX, int blockY) {
+    auto *b = (unsigned char *) malloc(selected * 11);
+    int o = 0;
+    for (auto &it: blocks) {
+        if (it.second->selected) {
+            int x = Block_X(it.first) - blockX;
+            int y = Block_Y(it.first) - blockY;
+            it.second->write(reinterpret_cast<char *>(b) + o, Block_TO_LONG(x, y));
+            o += 11;
+        }
+    }
+
+    auto *deflated = (unsigned char *) malloc(std::max(selected * 11, 30));
+    z_stream defstream;
+    defstream.zalloc = Z_NULL;
+    defstream.zfree = Z_NULL;
+    defstream.opaque = Z_NULL;
+
+    defstream.avail_in = selected * 11;
+    defstream.next_in = b;
+    defstream.avail_out = std::max(selected * 11, 30);
+    defstream.next_out = deflated;
+
+    deflateInit(&defstream, Z_BEST_COMPRESSION);
+    deflate(&defstream, Z_FINISH);
+    deflateEnd(&defstream);
+
+    const std::string exportString = Base64::base64_encode(deflated, defstream.total_out);
+    glfwSetClipboardString(window->getId(), exportString.c_str());
+
+    free(b);
+    free(deflated);
+}
+
+void BlockManager::cut(int selected, int blockX, int blockY) {
+    copy(selected, blockX, blockY);
+    Blocks b = blocks;
+    for (auto &it: b) {
+        if (it.second->selected) blocks.erase(it.first);
+    }
+}
+
+int BlockManager::paste(int blockX, int blockY) {
+    const char *importString = glfwGetClipboardString(window->getId());
+    std::vector<BYTE> bytes = Base64::base64_decode(std::string(importString));
+    if (bytes.size() > 4) {
+        auto *inflated = (unsigned char *) malloc(bytes.size() * 8);
+        z_stream infstream;
+        infstream.zalloc = Z_NULL;
+        infstream.zfree = Z_NULL;
+        infstream.opaque = Z_NULL;
+
+        infstream.avail_in = bytes.size();
+        infstream.next_in = bytes.data();
+        infstream.avail_out = bytes.size() * 8;
+        infstream.next_out = inflated;
+
+        inflateInit(&infstream);
+        inflate(&infstream, Z_NO_FLUSH);
+        inflateEnd(&infstream);
+
+        if (infstream.total_out % 11 == 0) {
+            int count = infstream.total_out / 11;
+            long long pos = 0;
+            for (int i = 0; i < count; i++) {
+                auto *block = new Block(reinterpret_cast<char *>(inflated) + i * 11, types, &pos);
+                int x = Block_X(pos) + blockX;
+                int y = Block_Y(pos) + blockY;
+                blocks[Block_TO_LONG(x, y)] = block;
+                block->updateMvp(x << 5, y << 5);
+            }
+
+            return count;
+        } else {
+            return -1;
+        }
+        free(inflated);
+    } else {
+        return -1;
     }
 }

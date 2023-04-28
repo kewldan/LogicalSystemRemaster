@@ -23,7 +23,8 @@ public:
     std::function<bool(int)> isActive;
 
     BlockType();
-    BlockType(int id, const std::function<bool(int)>& func);
+
+    BlockType(int id, const std::function<bool(int)> &func);
 };
 
 BlockRotation rotateBlock(BlockRotation r, int k);

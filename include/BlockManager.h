@@ -5,6 +5,8 @@
 #include <thread>
 #include <mutex>
 #include "File.h"
+#include "Base64.h"
+#include "zlib.h"
 #include "Window.h"
 
 typedef std::unordered_map<long long, Block *> Blocks;
@@ -71,4 +73,10 @@ public:
     bool save(const char *path);
 
     bool load(const char *path);
+
+    void copy(int selected, int blockX, int blockY);
+
+    int paste(int blockX, int blockY);
+
+    void cut(int selected, int blockX, int blockY);
 };

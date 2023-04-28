@@ -34,8 +34,12 @@ void Engine::Camera::updateView() {
 }
 
 void Engine::Camera::updateOrthographic() {
-    orthographic = glm::ortho(window->width * (1 - zoom), window->width * zoom, window->height * (1 - zoom),
-                              window->height * zoom, 0.01f, 10.0f);
+    left = (float) window->width * (1 - zoom);
+    right = (float) window->width * zoom;
+    top = (float) window->height * zoom;
+    bottom = (float) window->height * (1 - zoom);
+    orthographic = glm::ortho(left, right, bottom,
+                              top, 0.01f, 10.0f);
 }
 
 void Engine::Camera::zoomIn(float factor) {

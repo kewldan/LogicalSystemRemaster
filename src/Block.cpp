@@ -1,7 +1,5 @@
 #include "Block.h"
 
-#include <utility>
-
 BlockRotation rotateBlock(BlockRotation r, int k) {
     if (r == 0 && k == -1) return 3;
     return (r + k) % 4;
@@ -11,7 +9,7 @@ long long Block_TO_LONG(int x, int y) {
     return static_cast<long long>(x) << 32 | (y & 0xFFFFFFFFL);
 }
 
-BlockType::BlockType(int id, const std::function<bool(int)>& func) {
+BlockType::BlockType(int id, const std::function<bool(int)> &func) {
     this->id = id;
     isActive = func;
 }

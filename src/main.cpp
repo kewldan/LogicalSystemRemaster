@@ -11,8 +11,6 @@
 #include "RenderPipeline.h"
 #include <format>
 #include "Input.h"
-#include "Base64.h"
-#include "zlib.h"
 
 Engine::Window *window;
 Engine::Input *input;
@@ -46,6 +44,37 @@ void load_example(const char *path) {
     ImGui::InsertNotification(toast);
 }
 
+void mouse_wheel_callback(GLFWwindow *w, double xoffset, double yoffset) {
+    camera->zoomIn((float) yoffset * -0.1f);
+}
+
+void cut() {
+    blocks->cut(selectedBlocks, blockX, blockY);
+    ImGuiToast toast(ImGuiToastType_Success, 2000);
+    toast.set_title("%d blocks cut", selectedBlocks);
+    ImGui::InsertNotification(toast);
+}
+
+void copy() {
+    blocks->copy(selectedBlocks, blockX, blockY);
+    ImGuiToast toast(ImGuiToastType_Success, 2000);
+    toast.set_title("%d blocks copied", selectedBlocks);
+    ImGui::InsertNotification(toast);
+}
+
+void paste() {
+    ImGuiToast toast(0);
+    int count = blocks->paste(blockX, blockY);
+    if (count != -1) {
+        toast.set_type(ImGuiToastType_Success);
+        toast.set_title("%d blocks pasted", count);
+    } else {
+        toast.set_type(ImGuiToastType_Error);
+        toast.set_title("Failed to paste");
+    }
+    ImGui::InsertNotification(toast);
+}
+
 void key_callback(GLFWwindow *w, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS) {
         if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9) {
@@ -60,88 +89,19 @@ void key_callback(GLFWwindow *w, int key, int scancode, int action, int mods) {
                 saveMenu = true;
             } else if (key == GLFW_KEY_O) {
                 loadDialog.Open();
-
+            } else if (key == GLFW_KEY_X) {
+                cut();
             } else if (key == GLFW_KEY_C) {
-                auto *b = (unsigned char*) malloc(selectedBlocks * 11);
-                int o = 0;
-                for (auto &it: blocks->blocks) {
-                    if(it.second->selected) {
-                        int x = Block_X(it.first) - blockX;
-                        int y = Block_Y(it.first) - blockY;
-                        it.second->write(reinterpret_cast<char *>(b) + o, Block_TO_LONG(x, y));
-                        o += 11;
-                    }
-                }
-
-                auto *deflated = (unsigned char*) malloc(max(selectedBlocks * 11, 30));
-                z_stream defstream;
-                defstream.zalloc = Z_NULL;
-                defstream.zfree = Z_NULL;
-                defstream.opaque = Z_NULL;
-
-                defstream.avail_in = selectedBlocks * 11;
-                defstream.next_in = b;
-                defstream.avail_out = max(selectedBlocks * 11, 30);
-                defstream.next_out = deflated;
-
-                deflateInit(&defstream, Z_BEST_COMPRESSION);
-                deflate(&defstream, Z_FINISH);
-                deflateEnd(&defstream);
-
-                const std::string exportString = Base64::base64_encode(deflated, defstream.total_out);
-                glfwSetClipboardString(window->getId(), exportString.c_str());
-                ImGuiToast toast(ImGuiToastType_Success, 2000);
-                toast.set_title("Copied %d blocks", selectedBlocks);
-                ImGui::InsertNotification(toast);
-                free(b);
-                free(deflated);
+                copy();
             } else if (key == GLFW_KEY_V) {
-                const char *importString = glfwGetClipboardString(window->getId());
-                std::vector<BYTE> bytes = Base64::base64_decode(std::string(importString));
-                if (bytes.size() > 4) {
-                    auto* inflated = (unsigned char*) malloc(bytes.size() * 8);
-                    z_stream infstream;
-                    infstream.zalloc = Z_NULL;
-                    infstream.zfree = Z_NULL;
-                    infstream.opaque = Z_NULL;
-
-                    infstream.avail_in = bytes.size();
-                    infstream.next_in = bytes.data();
-                    infstream.avail_out = bytes.size() * 8;
-                    infstream.next_out = inflated;
-
-                    inflateInit(&infstream);
-                    inflate(&infstream, Z_NO_FLUSH);
-                    inflateEnd(&infstream);
-
-                    if(infstream.total_out % 11 == 0){
-                        int count = infstream.total_out / 11;
-                        long long pos = 0;
-                        for(int i = 0; i < count; i++){
-                            auto* block = new Block(reinterpret_cast<char *>(inflated) + i * 11, blocks->types, &pos);
-                            int x = Block_X(pos) + blockX;
-                            int y = Block_Y(pos) + blockY;
-                            blocks->blocks[Block_TO_LONG(x, y)] = block;
-                            block->updateMvp(x << 5, y << 5);
-                        }
-
-                        ImGuiToast toast(ImGuiToastType_Success, 2000);
-                        toast.set_title("Pasted %d blocks", count);
-                        ImGui::InsertNotification(toast);
-                    }else{
-                        ImGuiToast toast(ImGuiToastType_Error, 2000);
-                        toast.set_title("Failed to paste");
-                        ImGui::InsertNotification(toast);
-                    }
-                    free(inflated);
-                } else {
-                    ImGuiToast toast(ImGuiToastType_Error, 2000);
-                    toast.set_title("Failed to paste");
-                    ImGui::InsertNotification(toast);
-                }
+                paste();
             }
         }
     }
+}
+
+float map(float value, float max1, float min2, float max2) {
+    return min2 + value * (max2 - min2) / max1;
 }
 
 int main() {
@@ -153,6 +113,7 @@ int main() {
     window->setIcon("./data/icons/icon.png");
     input = new Engine::Input(window->getId());
 
+    glfwSetScrollCallback(window->getId(), mouse_wheel_callback);
     glfwSetKeyCallback(window->getId(), key_callback);
 
     PLOGI << "<< LOADING ASSETS >>";
@@ -180,20 +141,20 @@ int main() {
             pipeline->resize(window->width, window->height);
             camera->updateOrthographic();
         }
-        blockX = (int) floorf((input->getCursorPosition().x / (float) window->width *
-                               (window->width * 2.f * camera->zoom - window->width) + camera->position.x) / 32.f +
+        float cursorX = map(input->getCursorPosition().x, (float) window->width, camera->left, camera->right);
+        float cursorY = map(input->getCursorPosition().y, (float) window->height, camera->bottom, camera->top);
+        blockX = (int) floorf((cursorX + camera->position.x) / 32.f +
                               0.5f);
-        blockY = (int) floorf(((window->height - input->getCursorPosition().y) / (float) window->height *
-                               (window->height * 2.f * camera->zoom - window->height) + camera->position.y) / 32 +
+        blockY = (int) floorf((((float) window->height - cursorY) + camera->position.y) / 32.f +
                               0.5f);
         window->reset();
 
         pipeline->beginPass(camera, bloom, blocks->atlas, blocks->VAO, [](Engine::Shader *shader) {
             int j = 0, x, y;
-            int LB = (int) camera->position.x - 16;
-            int RB = window->width + 16 + (int) camera->position.x;
-            int BB = (int) camera->position.y - 16;
-            int TB = window->height + 16 + (int) camera->position.y;
+            int LB = (int) camera->position.x + (int) camera->left - 16;
+            int RB = (int) camera->position.x + (int) camera->right + 16;
+            int BB = (int) camera->position.y + (int) camera->bottom - 16;
+            int TB = (int) camera->position.y + (int) camera->top + 16;
             for (auto &it: blocks->blocks) {
                 x = Block_X(it.first) << 5;
                 y = Block_Y(it.first) << 5;
@@ -213,21 +174,34 @@ int main() {
 
             static bool f = false;
             static ImVec2 start, delta;
+            static glm::vec2 cameraStart, cameraDelta, size;
             if (input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
                 if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-                    start = io->MouseClickedPos[ImGuiMouseButton_Left];
+                    if (!f) {
+                        start = io->MouseClickedPos[ImGuiMouseButton_Left];
+                        start.x = map(start.x, (float) window->width, camera->left, camera->right);
+                        start.y = map(start.y, (float) window->height, camera->bottom, camera->top);
+
+                        cameraStart = camera->position;
+                    }
                     delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+                    delta.x *= (camera->right - camera->left) / (float) window->width;
+                    delta.y *= (camera->top - camera->bottom) / (float) window->height;
+                    cameraDelta = glm::vec2(camera->position.x, camera->position.y) - cameraStart;
 
-                    int x = min(start.x, start.x + delta.x);
-                    int y = min(window->height - start.y, window->height - start.y - delta.y);
+                    size = glm::vec2(delta.x + cameraDelta.x, delta.y - cameraDelta.y);
 
-                    pipeline->drawSelection(camera, glm::vec2(x, y), glm::abs(glm::vec2(delta.x, delta.y)));
+                    int x = min(start.x, start.x + size.x);
+                    int y = max(start.y, start.y + size.y);
+
+                    pipeline->drawSelection(camera, glm::vec2(x, window->height - y) - cameraDelta, glm::abs(size));
                 } else if (f) {
-                    int LB = min(start.x, start.x + delta.x) + camera->position.x;
-                    int BB = min(window->height - start.y, window->height - start.y - delta.y) + camera->position.y;
+                    int LB = min(start.x, start.x + delta.x) + camera->position.x - cameraDelta.x;
+                    int BB = min(window->height - start.y, window->height - start.y - delta.y) + camera->position.y -
+                             cameraDelta.y;
 
-                    int RB = LB + abs(delta.x);
-                    int TB = BB + abs(delta.y);
+                    int RB = LB + abs(size.x);
+                    int TB = BB + abs(size.y);
                     selectedBlocks = 0;
                     for (auto &it: blocks->blocks) {
                         int px = Block_X(it.first) << 5;
@@ -251,7 +225,7 @@ int main() {
                                              ImGuiWindowFlags_NoFocusOnAppearing |
                                              ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove)) {
             ImGui::Text("FPS: %.1f", io->Framerate);
-            ImGui::Text("Tick: %.3fms", blocks->tickTime * 1000.);
+            ImGui::Text("Tick: %.2fms", blocks->tickTime * 1000.);
             ImGui::Text("Blocks: %zu", blocks->blocks.size());
         }
         ImGui::End();
@@ -268,6 +242,15 @@ int main() {
                         loadDialog.Open();
                     if (ImGui::MenuItem("\xef\x83\x87  Save", "Ctrl + S"))
                         saveMenu = true;
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu("Edit")) {
+                    if (ImGui::MenuItem("\xef\x83\x85 Copy", "Ctrl + C"))
+                        copy();
+                    if (ImGui::MenuItem("\xef\x83\xaa  Paste", "Ctrl + V"))
+                        paste();
+                    if (ImGui::MenuItem("\xef\x83\x84  Cut", "Ctrl + X"))
+                        cut();
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Examples")) {
@@ -296,7 +279,7 @@ int main() {
                     if (ImGui::MenuItem("Source code"))
                         ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                      nullptr, SW_SHOW);
-                    ImGui::MenuItem(std::format("Version: 1.0.8 ({})", __DATE__).c_str(), nullptr, nullptr, false);
+                    ImGui::MenuItem(std::format("Version: 1.0.9 ({})", __DATE__).c_str(), nullptr, nullptr, false);
                     ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
                     ImGui::EndMenu();
                 }
