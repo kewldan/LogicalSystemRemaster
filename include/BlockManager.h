@@ -74,6 +74,8 @@ public:
 
     bool load(const char *path);
 
+    void load_from_memory(const char* data);
+
     void select_all();
 
     void delete_selected();

@@ -24,6 +24,7 @@ public:
     unsigned int pingpongFBO[2]{};
     unsigned int pingpongBuffer[2]{};
     Engine::Shader *gShader, *blurShader, *finalShader, *backgroundShader, *selectionShader;
+    glm::vec3 blockDefaultColor, blockGlowColor;
     unsigned int FBO{}, gAlbedo{}, gAlbedoHDR{}, screenVAO{}, screenVBO{}, quadVAO{}, quadVBO{};
 
     RenderPipeline(const char *gShaderPath, const char *blurShaderPath, const char *finalShaderPath,

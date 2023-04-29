@@ -39,6 +39,8 @@ RenderPipeline::RenderPipeline(const char *gShaderPath, const char *blurShaderPa
     finalShader = new Engine::Shader(finalShaderPath);
     backgroundShader = new Engine::Shader(backgroundShaderPath);
     selectionShader = new Engine::Shader(selectionShaderPath);
+    blockDefaultColor = glm::vec3(0.92, 0.31, 0.2);
+    blockGlowColor = glm::vec3(0.33, 0.9, 0.27);
 
     glGenVertexArrays(1, &screenVAO);
     glGenBuffers(1, &screenVBO);
@@ -116,6 +118,8 @@ void RenderPipeline::beginPass(Engine::Camera *camera, bool bloom, unsigned int 
     gShader->upload("view", camera->getView());
     gShader->upload("tex", 0);
     gShader->upload("selectionColor", glm::vec3(1.3, 1.2, 1.8));
+    gShader->upload("ON", blockGlowColor);
+    gShader->upload("OFF", blockDefaultColor);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D_ARRAY, atlas);
@@ -171,3 +175,4 @@ void RenderPipeline::drawRectQuad() const {
     glBindVertexArray(quadVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
+

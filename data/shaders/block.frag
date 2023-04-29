@@ -9,10 +9,8 @@ in Vertex {
 } vertex;
 
 uniform sampler2DArray tex;
-uniform vec3 selectionColor;
+uniform vec3 selectionColor, ON, OFF;
 
-#define OFF vec3(0.92, 0.31, 0.2)
-#define ON vec3(0.33, 0.9, 0.27)
 #define BLOOM_STRENGTH 2
 
 void main()

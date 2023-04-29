@@ -219,18 +219,8 @@ bool BlockManager::save(const char *path) {
 bool BlockManager::load(const char *path) {
     const char *bin = Engine::File::readFile(path);
     if (!bin) return false;
-    int size = 0;
-    memcpy(&size, bin, 4);
-    blocks.clear();
-
-    long long pos = 0LL;
-    for (int i = 0; i < size; i++) {
-        auto *block = new Block(bin + i * 11L + 4, types, &pos);
-        blocks[pos] = block;
-    }
-
+    load_from_memory(bin);
     delete[] bin;
-
     return true;
 }
 
@@ -332,5 +322,17 @@ void BlockManager::delete_selected() {
     Blocks b = blocks;
     for (auto &it: b) {
         if (it.second->selected) blocks.erase(it.first);
+    }
+}
+
+void BlockManager::load_from_memory(const char *data) {
+    int size = 0;
+    memcpy(&size, data, 4);
+    blocks.clear();
+
+    long long pos = 0LL;
+    for (int i = 0; i < size; i++) {
+        auto *block = new Block(data + i * 11L + 4, types, &pos);
+        blocks[pos] = block;
     }
 }

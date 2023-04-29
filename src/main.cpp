@@ -33,14 +33,9 @@ int blockX, blockY, selectedBlocks;
 ImGui::FileBrowser saveDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CreateNewDir), loadDialog;
 
 void load_example(const char *path) {
-    ImGuiToast toast(0);
-    if (blocks->load(path)) {
-        toast.set_type(ImGuiToastType_Success);
-        toast.set_title("%s loaded successfully", path);
-    } else {
-        toast.set_type(ImGuiToastType_Error);
-        toast.set_title("%s was not loaded!", path);
-    }
+    blocks->load_from_memory((const char*) Engine::File::readResourceFile(path));
+    ImGuiToast toast(ImGuiToastType_Success, 2000);
+    toast.set_title("%s loaded successfully", path);
     ImGui::InsertNotification(toast);
 }
 
@@ -205,22 +200,22 @@ int main() {
 
                     size = glm::vec2(delta.x + cameraDelta.x, delta.y - cameraDelta.y);
 
-                    int x = min(start.x, start.x + size.x);
-                    int y = max(start.y, start.y + size.y);
+                    int s_x = min(start.x, start.x + size.x);
+                    int s_y = max(start.y, start.y + size.y);
 
-                    pipeline->drawSelection(camera, glm::vec2(x, window->height - y) - cameraDelta, glm::abs(size));
+                    pipeline->drawSelection(camera, glm::vec2(s_x, window->height - s_y) - cameraDelta, glm::abs(size));
                 } else if (f) {
-                    int LB = min(start.x, start.x + delta.x) + camera->position.x - cameraDelta.x;
-                    int BB = min(window->height - start.y, window->height - start.y - delta.y) + camera->position.y -
+                    int s_LB = min(start.x, start.x + size.x) + camera->position.x - cameraDelta.x;
+                    int s_BB = window->height - max(start.y, start.y + size.y) + camera->position.y -
                              cameraDelta.y;
 
-                    int RB = LB + abs(size.x);
-                    int TB = BB + abs(size.y);
+                    int s_RB = s_LB + abs(size.x);
+                    int s_TB = s_BB + abs(size.y);
                     selectedBlocks = 0;
                     for (auto &it: blocks->blocks) {
                         int px = Block_X(it.first) << 5;
                         int py = Block_Y(it.first) << 5;
-                        it.second->selected = px > LB && px < RB && py > BB && py < TB;
+                        it.second->selected = px > s_LB && px < s_RB && py > s_BB && py < s_TB;
                         selectedBlocks += it.second->selected;
                     }
 
@@ -272,8 +267,8 @@ int main() {
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Examples")) {
-                    if (ImGui::MenuItem("\xef\x81\xbc Wires overview")) load_example("./data/examples/wires.ls");
-                    if (ImGui::MenuItem("\xef\x81\xbc Blocks overview")) load_example("./data/examples/blocks.ls");
+                    if (ImGui::MenuItem("\xef\x81\xbc Wires overview")) load_example("data/examples/wires.ls");
+                    if (ImGui::MenuItem("\xef\x81\xbc Blocks overview")) load_example("data/examples/blocks.ls");
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Graphics")) {
@@ -297,7 +292,7 @@ int main() {
                     if (ImGui::MenuItem("Source code"))
                         ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                      nullptr, SW_SHOW);
-                    ImGui::MenuItem(std::format("Version: 1.0.11 ({})", __DATE__).c_str(), nullptr, nullptr, false);
+                    ImGui::MenuItem(std::format("Version: 1.0.13 ({})", __DATE__).c_str(), nullptr, nullptr, false);
                     ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
                     ImGui::EndMenu();
                 }
@@ -310,6 +305,8 @@ int main() {
                 ImGui::Text("Simulation ticks per second");
                 ImGui::EndTooltip();
             }
+            ImGui::ColorEdit3("Default color", reinterpret_cast<float *>(&pipeline->blockDefaultColor));
+            ImGui::ColorEdit3("Glow color", reinterpret_cast<float *>(&pipeline->blockGlowColor));
             ImGui::Combo("Block", &playerInput.currentBlock,
                          "Wire straight\0Wire angled right\0Wire angled left\0Wire T\0Wire cross\0Wire 2\0Wire 3\0NOT\0AND\0NAND\0XOR\0NXOR\0Switch\0Clock\0Lamp");
             if (ImGui::IsItemHovered()) {
