@@ -200,26 +200,29 @@ void BlockManager::draw(int count) const {
     glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, count);
 }
 
-bool BlockManager::save(const char *path) {
+bool BlockManager::save(Engine::Camera *camera, const char *path) {
     char *bin = new char[blocks.size() * 11 + 4];
+    memcpy(bin, &camera->position.x, 4);
+    memcpy(bin + 4, &camera->position.y, 4);
+    memcpy(bin + 8, &camera->zoom, 4);
     int size = (int) blocks.size();
-    memcpy(bin, &size, 4);
+    memcpy(bin + 12, &size, 4);
 
-    int o = 4;
-    for (auto it = blocks.begin(); it != blocks.end(); ++it) {
-        it->second->write(bin + o, it->first);
+    int o = 16;
+    for (auto & block : blocks) {
+        block.second->write(bin + o, block.first);
         o += 11;
     }
 
-    bool ok = Engine::File::writeFile(path, bin, size * 11 + 4);
+    bool ok = Engine::File::writeFile(path, bin, size * 11 + 16);
     delete[] bin;
     return ok;
 }
 
-bool BlockManager::load(const char *path) {
+bool BlockManager::load(Engine::Camera *camera, const char *path) {
     const char *bin = Engine::File::readFile(path);
     if (!bin) return false;
-    load_from_memory(bin);
+    load_from_memory(camera, bin);
     delete[] bin;
     return true;
 }
@@ -325,14 +328,19 @@ void BlockManager::delete_selected() {
     }
 }
 
-void BlockManager::load_from_memory(const char *data) {
+void BlockManager::load_from_memory(Engine::Camera *camera, const char *data) {
+    memcpy(&camera->position.x, data, 4);
+    memcpy(&camera->position.y, data + 4, 4);
+    float z = 0;
+    memcpy(&z, data + 8, 4);
+    camera->setZoom(z);
     int size = 0;
-    memcpy(&size, data, 4);
+    memcpy(&size, data + 12, 4);
     blocks.clear();
 
     long long pos = 0LL;
     for (int i = 0; i < size; i++) {
-        auto *block = new Block(data + i * 11L + 4, types, &pos);
+        auto *block = new Block(data + i * 11L + 16, types, &pos);
         blocks[pos] = block;
     }
 }

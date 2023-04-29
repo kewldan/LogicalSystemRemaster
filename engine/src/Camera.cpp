@@ -48,3 +48,11 @@ void Engine::Camera::zoomIn(float factor) {
     smoothZoomStart = glfwGetTime();
     zoomChanging = true;
 }
+
+void Engine::Camera::setZoom(float newZoom) {
+    targetZoom = newZoom;
+    zoom = newZoom;
+    zoomChanging = false;
+    updateOrthographic();
+    updateView();
+}

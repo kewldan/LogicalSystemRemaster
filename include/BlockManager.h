@@ -8,6 +8,7 @@
 #include "Base64.h"
 #include "zlib.h"
 #include "Window.h"
+#include "Camera.h"
 
 typedef std::unordered_map<long long, Block *> Blocks;
 
@@ -70,11 +71,11 @@ public:
 
     void draw(int count) const;
 
-    bool save(const char *path);
+    bool save(Engine::Camera *camera, const char *path);
 
-    bool load(const char *path);
+    bool load(Engine::Camera *camera, const char *path);
 
-    void load_from_memory(const char* data);
+    void load_from_memory(Engine::Camera *camera, const char* data);
 
     void select_all();
 

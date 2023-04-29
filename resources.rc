@@ -13,8 +13,9 @@ data/shaders/final.frag RCDATA "data/shaders/final.frag"
 data/shaders/selection.vert RCDATA "data/shaders/selection.vert"
 data/shaders/selection.frag RCDATA "data/shaders/selection.frag"
 
-data/examples/blocks.ls RCDATA "data/examples/blocks.ls"
-data/examples/wires.ls RCDATA "data/examples/wires.ls"
+data/examples/Adder4Bit.ls RCDATA "data/examples/Adder4Bit.ls"
+data/examples/Blocks.ls RCDATA "data/examples/Blocks.ls"
+data/examples/RAM1Byte.ls RCDATA "data/examples/RAM1Byte.ls"
 
 data/textures/favicon.png RCDATA "data/textures/favicon.png"
 

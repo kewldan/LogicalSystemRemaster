@@ -33,7 +33,7 @@ int blockX, blockY, selectedBlocks;
 ImGui::FileBrowser saveDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CreateNewDir), loadDialog;
 
 void load_example(const char *path) {
-    blocks->load_from_memory((const char*) Engine::File::readResourceFile(path));
+    blocks->load_from_memory(camera, (const char*) Engine::File::readResourceFile(path));
     ImGuiToast toast(ImGuiToastType_Success, 2000);
     toast.set_title("%s loaded successfully", path);
     ImGui::InsertNotification(toast);
@@ -267,8 +267,9 @@ int main() {
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Examples")) {
-                    if (ImGui::MenuItem("\xef\x81\xbc Wires overview")) load_example("data/examples/wires.ls");
-                    if (ImGui::MenuItem("\xef\x81\xbc Blocks overview")) load_example("data/examples/blocks.ls");
+                    if (ImGui::MenuItem("\xef\x81\xbc Blocks overview")) load_example("data/examples/Blocks.ls");
+                    if (ImGui::MenuItem("\xef\x81\xbc 1 Byte RAM")) load_example("data/examples/RAM1Byte.ls");
+                    if (ImGui::MenuItem("\xef\x81\xbc 4 Bit adder")) load_example("data/examples/Adder4Bit.ls");
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Graphics")) {
@@ -292,7 +293,7 @@ int main() {
                     if (ImGui::MenuItem("Source code"))
                         ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                      nullptr, SW_SHOW);
-                    ImGui::MenuItem(std::format("Version: 1.0.13 ({})", __DATE__).c_str(), nullptr, nullptr, false);
+                    ImGui::MenuItem(std::format("Version: 1.0.14 ({})", __DATE__).c_str(), nullptr, nullptr, false);
                     ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
                     ImGui::EndMenu();
                 }
@@ -330,7 +331,7 @@ int main() {
             std::string s = p.string();
             const char *path = s.c_str();
             ImGuiToast toast(0);
-            if (blocks->load(path)) {
+            if (blocks->load(camera, path)) {
                 toast.set_type(ImGuiToastType_Success);
                 toast.set_title("%s loaded successfully", path);
             } else {
@@ -353,7 +354,7 @@ int main() {
             strcat_s(buf, 128, saveFilename);
             strcat_s(buf, 128, ".ls");
             ImGuiToast toast(0);
-            if (blocks->save(buf)) {
+            if (blocks->save(camera, buf)) {
                 toast.set_type(ImGuiToastType_Success);
                 toast.set_title("%s saved successfully", const_cast<const char *>(buf));
             } else {
