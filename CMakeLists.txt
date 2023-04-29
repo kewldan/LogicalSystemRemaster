@@ -43,9 +43,13 @@ file(GLOB PROJECT_SRCS
         "include/*.h" "src/*.cpp"
         )
 
-set(APP_ICON_RESOURCE_WINDOWS "${CMAKE_CURRENT_SOURCE_DIR}/appicon.rc")
+set(LIBRARIES_SRCS
+        ${IMGUI_SOURCES}
+        "${GLAD_PATH}/src/glad.c"
+        "${LIBRARIES_PATH}/b64/Base64.cpp")
 
-add_executable(${PROJECT_NAME} ${ENGINE_SRCS} ${PROJECT_SRCS} ${IMGUI_SOURCES} "${GLAD_PATH}/src/glad.c" "${LIBRARIES_PATH}/b64/Base64.cpp" ${APP_ICON_RESOURCE_WINDOWS})
+add_executable(${PROJECT_NAME} ${ENGINE_SRCS} ${PROJECT_SRCS} ${LIBRARIES_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/resources.rc")
+
 add_custom_command(TARGET ${PROJECT_NAME}
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> ${CMAKE_CURRENT_SOURCE_DIR})

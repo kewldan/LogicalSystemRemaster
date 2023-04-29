@@ -16,23 +16,23 @@ Engine::Shader::Shader(const char *filename) {
     fragment = -1;
     blockIndex = 0;
 
-    char *path = new char[128];
-    strcpy_s(path, 128, "./data/shaders/");
-    strcat_s(path, 128, filename);
-    strcat_s(path, 128, ".vert");
-    if (File::exists(path)) {
+    char *path = new char[64];
+    strcpy_s(path, 64, "data/shaders/");
+    strcat_s(path, 64, filename);
+    strcat_s(path, 64, ".vert");
+    if (File::resourceExists(path)) {
         vertex = loadShader(path, GL_VERTEX_SHADER, SHADER_PART_VERTEX);
     }
 
     path[strlen(path) - 5] = 0;
-    strcat_s(path, 128, ".frag");
-    if (File::exists(path)) {
+    strcat_s(path, 64, ".frag");
+    if (File::resourceExists(path)) {
         fragment = loadShader(path, GL_FRAGMENT_SHADER, SHADER_PART_FRAGMENT);
     }
 
     path[strlen(path) - 5] = 0;
-    strcat_s(path, 128, ".geom");
-    if (File::exists(path)) {
+    strcat_s(path, 64, ".geom");
+    if (File::resourceExists(path)) {
         geometry = loadShader(path, GL_GEOMETRY_SHADER, SHADER_PART_GEOMETRY);
     }
 
@@ -64,7 +64,7 @@ GLint Engine::Shader::getAttribLocation(const char *name) const {
 
 int Engine::Shader::loadShader(const char *path, int type, const char bitshift) {
     int shader = glCreateShader(type);
-    const char *shader_source = Engine::File::readString(path);
+    const char *shader_source = Engine::File::readResourceString(path);
     glShaderSource(shader, 1, &shader_source, nullptr);
     glCompileShader(shader);
 

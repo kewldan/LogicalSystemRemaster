@@ -122,7 +122,7 @@ int main() {
 
     Engine::Window::init();
     window = new Engine::Window(1280, 720, "Logical system");
-    window->setIcon("./data/icons/icon.png");
+    window->setIcon("data/textures/favicon.png");
     input = new Engine::Input(window->getId());
 
     glfwSetScrollCallback(window->getId(), mouse_wheel_callback);
@@ -136,8 +136,10 @@ int main() {
     io = &ImGui::GetIO();
 
     font_cfg.FontDataOwnedByAtlas = false;
-    io->Fonts->AddFontFromFileTTF("./data/fonts/tahoma.ttf", 18.f, &font_cfg);
-    ImGui::MergeIconsWithLatestFont(16.f, false);
+    int size = 0;
+    void* fontData = Engine::File::readResourceFile("data/fonts/tahoma.ttf", &size);
+    io->Fonts->AddFontFromMemoryTTF(fontData, size, 18.f, &font_cfg);
+    ImGui::MergeIconsWithLatestFont(18.f, false);
 
     saveDialog.SetTitle("Save scheme");
     loadDialog.SetTitle("Load scheme");
@@ -295,7 +297,7 @@ int main() {
                     if (ImGui::MenuItem("Source code"))
                         ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                      nullptr, SW_SHOW);
-                    ImGui::MenuItem(std::format("Version: 1.0.10 ({})", __DATE__).c_str(), nullptr, nullptr, false);
+                    ImGui::MenuItem(std::format("Version: 1.0.11 ({})", __DATE__).c_str(), nullptr, nullptr, false);
                     ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
                     ImGui::EndMenu();
                 }

@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 #include "Window.h"
+#include <cmath>
 
 namespace Engine {
     class Camera {

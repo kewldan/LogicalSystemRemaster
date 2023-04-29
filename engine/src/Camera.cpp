@@ -44,7 +44,7 @@ void Engine::Camera::updateOrthographic() {
 
 void Engine::Camera::zoomIn(float factor) {
     targetZoom += factor;
-    targetZoom = std::max(std::min(targetZoom, 3.f), 0.6f);
+    targetZoom = max(min(targetZoom, 3.f), 0.6f);
     smoothZoomStart = glfwGetTime();
     zoomChanging = true;
 }

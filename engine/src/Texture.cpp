@@ -9,11 +9,13 @@ Engine::Texture::Texture(const char *filename) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    static char *f = new char[256];
-    strcpy_s(f, 256, "./data/textures/");
-    strcat_s(f, 256, filename);
+    static char *f = new char[128];
+    strcpy_s(f, 128, "data/textures/");
+    strcat_s(f, 128, filename);
 
-    unsigned char *data = stbi_load(f, &width, &height, &nrChannels, 0);
+    int size = 0;
+    auto *raw = reinterpret_cast<unsigned char *>(Engine::File::readResourceFile(f, &size));
+    unsigned char *data = stbi_load_from_memory(raw, size, &width, &height, &nrChannels, 0);
     if (data) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, nrChannels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE,
                      data);
@@ -40,5 +42,7 @@ void Engine::Texture::bind() const {
 }
 
 unsigned char *Engine::Texture::loadImage(const char *path, int *w, int *h) {
-    return stbi_load(path, w, h, nullptr, 4);
+    int size = 0;
+    auto *raw = reinterpret_cast<unsigned char *>(Engine::File::readResourceFile(path, &size));
+    return stbi_load_from_memory(raw, size, w, h, nullptr, 4);
 }

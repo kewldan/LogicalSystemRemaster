@@ -3,6 +3,7 @@
 #include "glad/glad.h"
 #include <string>
 #include "plog/Log.h"
+#include "File.h"
 #include "stb_image.h"
 
 namespace Engine {

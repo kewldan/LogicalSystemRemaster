@@ -76,9 +76,9 @@ void Engine::Window::setIcon(const char *path) {
 }
 
 void Engine::Window::init() {
+#ifndef NDEBUG
     std::remove("latest.log");
     plog::init(plog::debug, "latest.log");
-#ifndef NDEBUG
     plog::get()->addAppender(new plog::ColorConsoleAppender<plog::FuncMessageFormatter>());
 #endif
     PLOGI << "<< LOADING LIBRARIES >>";

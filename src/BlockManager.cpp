@@ -12,7 +12,7 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
 
     int width, height;
 
-    unsigned char *data = Engine::Texture::loadImage("./data/textures/blocks.png", &width, &height);
+    unsigned char *data = Engine::Texture::loadImage("data/textures/blocks.png", &width, &height);
     if (data) {
         glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA,
                      32, 32, 15, 0,
