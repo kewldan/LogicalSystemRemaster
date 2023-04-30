@@ -131,27 +131,33 @@ void RenderPipeline::beginPass(Engine::Camera *camera, bool bloom, unsigned int 
 
     glBindVertexArray(blockVao);
     useFunction(gShader);
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, FBO);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, intermediateFBO);
-    glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-    bool horizontal = true, first_iteration = true;
     glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[0]);
     glClear(GL_COLOR_BUFFER_BIT);
-    glowShader->bind();
-    glowShader->upload("proj", camera->getOrthographic());
-    glowShader->upload("view", camera->getView());
-    glowShader->upload("tex", 0);
-    glowShader->upload("ON", blockGlowColor);
-    glowShader->upload("OFF", blockDefaultColor);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, atlas);
+    if (!bloom) {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, FBO);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    } else {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, FBO);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, intermediateFBO);
+        glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-    glBindVertexArray(blockVao);
-    glowFunction(glowShader);
+        glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[0]);
+        bool horizontal = true, first_iteration = true;
+        glowShader->bind();
+        glowShader->upload("proj", camera->getOrthographic());
+        glowShader->upload("view", camera->getView());
+        glowShader->upload("tex", 0);
+        glowShader->upload("ON", blockGlowColor);
+        glowShader->upload("OFF", blockDefaultColor);
 
-    if (bloom) {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, atlas);
+
+        glBindVertexArray(blockVao);
+        glowFunction(glowShader);
         blurShader->bind();
         blurShader->upload("image", 0);
         for (int i = 0; i < 12; i++) {
@@ -166,20 +172,18 @@ void RenderPipeline::beginPass(Engine::Camera *camera, bool bloom, unsigned int 
             if (first_iteration)
                 first_iteration = false;
         }
-    }
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    finalShader->bind();
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, screenTexture);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, pingpongBuffer[!horizontal]);
-    finalShader->upload("bloom", bloom);
-    finalShader->upload("scene", 0);
-    finalShader->upload("bloomBlur", 1);
-    static const glm::mat4 finalMvp = glm::translate(glm::mat4(1), glm::vec3(0.f, 0.f, -0.5f));
-    finalShader->upload("mvp", finalMvp);
-    drawScreenQuad();
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        finalShader->bind();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, screenTexture);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, pingpongBuffer[!horizontal]);
+        finalShader->upload("scene", 0);
+        finalShader->upload("bloomBlur", 1);
+        drawScreenQuad();
+    }
 }
 
 void RenderPipeline::drawSelection(Engine::Camera *camera, glm::vec2 position, glm::vec2 size) const {

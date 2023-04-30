@@ -3,6 +3,7 @@
 #include "Texture.h"
 #include "glm/glm.hpp"
 #include <glm/gtx/transform.hpp>
+#include "Engine.h"
 #include <functional>
 
 #define BlockRotation unsigned char

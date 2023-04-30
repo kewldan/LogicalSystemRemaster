@@ -1,7 +1,11 @@
 #include "BlockManager.h"
 
 BlockManager::BlockManager(Engine::Window *window, const float vertices[], int count) {
+    ASSERT("Window is nullptr", window != nullptr);
+    ASSERT("Vertices is nullptr", vertices != nullptr);
+    ASSERT("Count must be > 0", count > 0);
     glGenTextures(1, &atlas);
+    ASSERT("Atlas invalid", atlas > 0);
 
     glBindTexture(GL_TEXTURE_2D_ARRAY, atlas);
 
@@ -82,6 +86,7 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
 }
 
 void BlockManager::set(int x, int y, Block *block) {
+    ASSERT("Block is nullptr", block != nullptr);
     blocks[Block_TO_LONG(x, y)] = block;
 }
 
@@ -103,6 +108,7 @@ void BlockManager::erase(int x, int y) {
 }
 
 void BlockManager::rotate(int x, int y, BlockRotation rotation) {
+    ASSERT("Rotation invalid", rotation >= 0 && rotation <= 3);
     Block *block = get(x, y);
     block->rotation = rotation;
     block->updateMvp(x << 5, y << 5);
@@ -183,6 +189,7 @@ void BlockManager::setActive(int x, int y, BlockRotation rotation) {
 }
 
 void BlockManager::setActive(int x, int y, BlockRotation rotation, int l) {
+    ASSERT("Block length must be > 0", l > 0);
     if (rotation == 0) {
         setActive(x, y + l);
     } else if (rotation == 1) {
@@ -195,6 +202,7 @@ void BlockManager::setActive(int x, int y, BlockRotation rotation, int l) {
 }
 
 void BlockManager::draw(int count) const {
+    ASSERT("Count must be > 0", count > 0);
     glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
     glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * count, info);
     glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, count);
@@ -202,7 +210,9 @@ void BlockManager::draw(int count) const {
 
 bool BlockManager::save(Engine::Camera *camera, const char *path) {
     if(Engine::File::exists(path)) return false;
-    char *bin = new char[blocks.size() * 11 + 4];
+    ASSERT("Path is nullptr", path != nullptr);
+    char *bin = new char[blocks.size() * 11 + 16];
+    ASSERT("Memory for data is nullptr", bin != nullptr);
     memcpy(bin, &camera->position.x, 4);
     memcpy(bin + 4, &camera->position.y, 4);
     float zoom = camera->getZoom();
@@ -220,6 +230,7 @@ bool BlockManager::save(Engine::Camera *camera, const char *path) {
 }
 
 bool BlockManager::load(Engine::Camera *camera, const char *path) {
+    ASSERT("Path is nullptr", path != nullptr);
     const char *bin = Engine::File::readFile(path);
     if (!bin) return false;
     load_from_memory(camera, bin);
@@ -305,6 +316,7 @@ void BlockManager::delete_selected() {
 }
 
 void BlockManager::load_from_memory(Engine::Camera *camera, const char *data) {
+    ASSERT("Data is nullptr", data != nullptr);
     memcpy(&camera->position.x, data, 4);
     memcpy(&camera->position.y, data + 4, 4);
     float z = 0;

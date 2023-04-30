@@ -2,6 +2,7 @@
 
 #include "Block.h"
 #include <unordered_map>
+#include "Engine.h"
 #include <thread>
 #include <mutex>
 #include "File.h"

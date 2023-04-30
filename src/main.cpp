@@ -27,7 +27,7 @@ struct PlayerInput {
     int currentRotation;
 } playerInput;
 
-bool focused = true, saveMenu = false, bloom = true, controlsMenu = false;
+bool saveMenu = false, bloom = true, controlsMenu = false;
 char *saveFilename = nullptr;
 int blockX, blockY, selectedBlocks;
 ImGui::FileBrowser saveDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CreateNewDir), loadDialog;
@@ -80,14 +80,17 @@ void select_all() {
 
 void key_callback(GLFWwindow *w, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS) {
-        if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9) {
-            playerInput.currentBlock = key == GLFW_KEY_0 ? 9 : key - GLFW_KEY_1;
-            playerInput.currentBlock += 10 * input->isKeyPressed(GLFW_KEY_LEFT_SHIFT);
-            playerInput.currentBlock = std::min(playerInput.currentBlock, 14);
-        } else if (key == GLFW_KEY_R) {
-            playerInput.currentRotation = rotateBlock(playerInput.currentRotation,
-                                                      input->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1 : 1);
-        } else if (key == GLFW_KEY_DELETE) {
+        if(!io->WantCaptureKeyboard) {
+            if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9) {
+                playerInput.currentBlock = key == GLFW_KEY_0 ? 9 : key - GLFW_KEY_1;
+                playerInput.currentBlock += 10 * input->isKeyPressed(GLFW_KEY_LEFT_SHIFT);
+                playerInput.currentBlock = std::min(playerInput.currentBlock, 14);
+            } else if (key == GLFW_KEY_R) {
+                playerInput.currentRotation = rotateBlock(playerInput.currentRotation,
+                                                          input->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1 : 1);
+            }
+        }
+        if (key == GLFW_KEY_DELETE) {
             blocks->delete_selected();
         } else if (input->isKeyPressed(GLFW_KEY_LEFT_CONTROL)) {
             if (key == GLFW_KEY_S) {
@@ -102,6 +105,8 @@ void key_callback(GLFWwindow *w, int key, int scancode, int action, int mods) {
                 paste();
             } else if (key == GLFW_KEY_A) {
                 select_all();
+            }else if(key == GLFW_KEY_N){
+                blocks->blocks.clear();
             }
         }
     }
@@ -141,8 +146,8 @@ int main() {
 
     font_cfg.FontDataOwnedByAtlas = false;
     int size = 0;
-    void *fontData = Engine::File::readResourceFile("data/fonts/tahoma.ttf", &size);
-    io->Fonts->AddFontFromMemoryTTF(fontData, size, 18.f, &font_cfg);
+    void *fontData = Engine::File::readResourceFile("FONT", &size);
+    io->Fonts->AddFontFromMemoryTTF(fontData, size, 16.f, &font_cfg);
     ImGui::MergeIconsWithLatestFont(18.f, false);
 
     saveDialog.SetTitle("Save scheme");
@@ -262,7 +267,7 @@ int main() {
                             });
 
         Engine::HUD::begin();
-        ImGui::SetNextWindowPos(ImVec2(15, 15), ImGuiCond_Once);
+        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Once);
         ImGui::SetNextWindowBgAlpha(0.4f);
         if (ImGui::Begin("##Debug", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
                                              ImGuiWindowFlags_NoFocusOnAppearing |
@@ -272,11 +277,8 @@ int main() {
             ImGui::Text("Blocks: %zu", blocks->blocks.size());
         }
         ImGui::End();
-        focused = false;
-        ImGui::SetNextWindowPos(ImVec2(15, 200), ImGuiCond_Once);
+        ImGui::SetNextWindowPos(ImVec2(10, 90), ImGuiCond_Once);
         if (ImGui::Begin("Simulation", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_MenuBar)) {
-            focused |= ImGui::IsWindowHovered();
-            focused |= ImGui::IsWindowFocused();
             if (ImGui::BeginMenuBar()) {
                 if (ImGui::BeginMenu("File")) {
                     if (ImGui::MenuItem("\xef\x85\x9b  New"))
@@ -327,14 +329,14 @@ int main() {
                     if (ImGui::MenuItem("Source code"))
                         ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                      nullptr, SW_SHOW);
-                    ImGui::MenuItem(std::format("Version: 1.0.15 ({})", __DATE__).c_str(), nullptr, nullptr, false);
+                    ImGui::MenuItem(std::format("Version: 1.0.17 ({})", __DATE__).c_str(), nullptr, nullptr, false);
                     ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
                     ImGui::EndMenu();
                 }
                 ImGui::EndMenuBar();
             }
             ImGui::Checkbox("Play", &blocks->simulate);
-            ImGui::SliderInt("TPS", &blocks->TPS, 1, 128);
+            ImGui::SliderInt("TPS", &blocks->TPS, 2, 256);
             if (ImGui::IsItemHovered()) {
                 ImGui::BeginTooltip();
                 ImGui::Text("Simulation ticks per second");
@@ -359,7 +361,6 @@ int main() {
         ImGui::End();
 
         loadDialog.Display();
-        focused |= loadDialog.IsOpened();
         if (loadDialog.HasSelected()) {
             auto p = loadDialog.GetSelected();
             std::string s = p.string();
@@ -377,7 +378,6 @@ int main() {
         }
 
         saveDialog.Display();
-        focused |= saveDialog.IsOpened();
         if (saveDialog.HasSelected()) {
             auto p = saveDialog.GetSelected();
             std::string s = p.string();
@@ -400,8 +400,6 @@ int main() {
         }
         if (saveMenu) {
             if (ImGui::Begin("Enter scheme name", &saveMenu, ImGuiWindowFlags_AlwaysAutoResize)) {
-                focused |= ImGui::IsWindowHovered();
-                focused |= ImGui::IsWindowFocused();
                 ImGui::InputText("Filename", saveFilename, 64, ImGuiInputTextFlags_NoHorizontalScroll);
                 if (ImGui::Button("\xef\x83\x87 Save", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
                     saveDialog.Open();
@@ -415,13 +413,11 @@ int main() {
             ImGui::SetNextWindowPos(ImVec2(io->DisplaySize.x * 0.5f, io->DisplaySize.y * 0.5f), ImGuiCond_Always,
                                     ImVec2(0.5f, 0.5f));
             if (ImGui::Begin("Controls", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-                focused |= ImGui::IsWindowHovered();
-                focused |= ImGui::IsWindowFocused();
                 if (ImGui::CollapsingHeader("\xef\xa3\x8c  Mouse", ImGuiTreeNodeFlags_DefaultOpen)) {
                     ImGui::Text("LMB - place blocks");
                     if (ImGui::IsItemHovered()) {
                         ImGui::BeginTooltip();
-                        ImGui::Text("+ SHIFT - Multiple selection");
+                        ImGui::Text("+ SHIFT - Drag - Multiple selection\n- Click on block - for rotate clockwise");
                         ImGui::EndTooltip();
                     }
                     ImGui::Text("RMB - remove blocks");
@@ -441,9 +437,10 @@ int main() {
                         ImGui::Text("+ SHIFT - Another set of blocks");
                         ImGui::EndTooltip();
                     }
+                    ImGui::Text("+ Hotkeys from menu");
                 }
                 ImGui::NewLine();
-                if (ImGui::Button("OK", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+                if (ImGui::Button("Close", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
                     controlsMenu = false;
                 }
             }
@@ -451,7 +448,7 @@ int main() {
         }
         Engine::HUD::end();
 
-        if (!focused) {
+        if(!io->WantCaptureKeyboard){
             float cameraSpeed = 500.f * camera->getZoom() * camera->getZoom() * io->DeltaTime;
             if (input->isKeyPressed(GLFW_KEY_A)) {
                 camera->position.x -= cameraSpeed;
@@ -468,6 +465,8 @@ int main() {
                 input->isKeyPressed(GLFW_KEY_W) || input->isKeyPressed(GLFW_KEY_S)) {
                 camera->updateView();
             }
+        }
+        if (!io->WantCaptureMouse) {
             if (!input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
                 Block *block = blocks->get(blockX, blockY);
                 if (block) {
