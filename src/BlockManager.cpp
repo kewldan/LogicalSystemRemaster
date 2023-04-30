@@ -205,31 +205,42 @@ void BlockManager::draw(int count) const {
 }
 
 bool BlockManager::save(Engine::Camera *camera, const char *path) {
-    if(Engine::File::exists(path)) return false;
+    if (Engine::File::exists(path)) return false;
     ASSERT("Path is nullptr", path != nullptr);
-    char *bin = new char[blocks.size() * 11 + 16];
-    ASSERT("Memory for data is nullptr", bin != nullptr);
-    memcpy(bin, &camera->position.x, 4);
-    memcpy(bin + 4, &camera->position.y, 4);
-    float zoom = camera->getZoom();
-    memcpy(bin + 8, &zoom, 4);
-    int size = (int) blocks.size();
-    memcpy(bin + 12, &size, 4);
-
-    int o = 16;
-    for (auto &block: blocks) {
-        block.second->write(bin + o, block.first);
-        o += 11;
+    nlohmann::json saveFile;
+    saveFile["camera"]["position"]["x"] = camera->position.x;
+    saveFile["camera"]["position"]["y"] = camera->position.y;
+    saveFile["camera"]["zoom"] = camera->getZoom();
+    saveFile["meta"]["version"] = 1;
+    saveFile["meta"]["timestamp"] = duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+    int j = 0;
+    for (auto &it: blocks) {
+        saveFile["blocks"][j]["pos"] = it.first;
+        saveFile["blocks"][j]["type"] = it.second->type->id;
+        saveFile["blocks"][j]["rotation"] = it.second->rotation;
+        saveFile["blocks"][j]["active"] = it.second->active;
+        j++;
     }
-    bool ok = Engine::File::writeFile(path, bin, size * 11 + 16);
+    auto binary = nlohmann::json::to_bson(saveFile);
+    bool ok = Engine::File::writeFile(path, reinterpret_cast<const char *>(binary.data()), binary.size());
     return ok;
+}
+
+inline bool ends_with(const char *value, const char *ending) {
+    if (strlen(value) >= strlen(ending)) {
+        return memcmp(value + strlen(value) - strlen(ending), ending, strlen(ending)) == 0;
+    } else {
+        return false;
+    }
 }
 
 bool BlockManager::load(Engine::Camera *camera, const char *path) {
     ASSERT("Path is nullptr", path != nullptr);
-    const char *bin = Engine::File::readFile(path);
+    int size = 0;
+    const char *bin = Engine::File::readFile(path, &size);
     if (!bin) return false;
-    load_from_memory(camera, bin);
+    load_from_memory(camera, bin, size, ends_with(path, ".bson"));
     delete[] bin;
     return true;
 }
@@ -311,20 +322,41 @@ void BlockManager::delete_selected() {
     }
 }
 
-void BlockManager::load_from_memory(Engine::Camera *camera, const char *data) {
+void BlockManager::load_from_memory(Engine::Camera *camera, const char *data, int length, bool is_bson) {
     ASSERT("Data is nullptr", data != nullptr);
-    memcpy(&camera->position.x, data, 4);
-    memcpy(&camera->position.y, data + 4, 4);
-    float z = 0;
-    memcpy(&z, data + 8, 4);
-    camera->setZoom(z);
-    int size = 0;
-    memcpy(&size, data + 12, 4);
     blocks.clear();
 
-    long long pos = 0LL;
-    for (int i = 0; i < size; i++) {
-        auto *block = new Block(data + i * 11L + 16, types, &pos);
-        blocks[pos] = block;
+    float z = 0.f;
+    if (is_bson) {
+        std::vector<std::uint8_t> v;
+        for (int i = 0; i < length; i++) {
+            v.push_back(data[i]);
+        }
+        nlohmann::json loadFile = nlohmann::json::from_bson(v);
+
+        z = loadFile["camera"]["zoom"].get<float>();
+        camera->setZoom(z);
+        camera->position.x = loadFile["camera"]["position"]["x"].get<float>();
+        camera->position.y = loadFile["camera"]["position"]["y"].get<float>();
+
+        for (auto it : loadFile["blocks"])
+        {
+            int x = Block_X(it["pos"].get<long long>());
+            int y = Block_Y(it["pos"].get<long long>());
+            auto* block = new Block(x, y, &types[it["type"].get<unsigned char>()], it["rotation"].get<BlockRotation>());
+            blocks[it["pos"].get<long long>()] = block;
+        }
+    } else {
+        memcpy(&camera->position.x, data, 4);
+        memcpy(&camera->position.y, data + 4, 4);
+        memcpy(&z, data + 8, 4);
+        camera->setZoom(z);
+        int size = 0;
+        memcpy(&size, data + 12, 4);
+        long long pos = 0LL;
+        for (int i = 0; i < size; i++) {
+            auto *block = new Block(data + i * 11L + 16, types, &pos);
+            blocks[pos] = block;
+        }
     }
 }

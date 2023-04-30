@@ -16,6 +16,7 @@ include_directories(
         "${LIBRARIES_PATH}/glfw/include"
         "${LIBRARIES_PATH}/glm/include"
         "${LIBRARIES_PATH}/zlib"
+        "${LIBRARIES_PATH}/bson"
         "${LIBRARIES_PATH}/imgui"
         "${PROJECT_SOURCE_DIR}/include"
         "${LIBRARIES_PATH}/engine/include"

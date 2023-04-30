@@ -8,6 +8,7 @@
 #include "File.h"
 #include "Base64.h"
 #include "Window.h"
+#include <json.hpp>
 #include "Camera.h"
 
 typedef std::unordered_map<long long, Block *> Blocks;
@@ -73,7 +74,7 @@ public:
 
     bool load(Engine::Camera *camera, const char *path);
 
-    void load_from_memory(Engine::Camera *camera, const char *data);
+    void load_from_memory(Engine::Camera *camera, const char *data, int length, bool is_bson = false);
 
     void select_all();
 

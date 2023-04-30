@@ -38,9 +38,9 @@ build/
 *.pdb
 libraries/
 out/
-dev/
 *.manifest
 *.zip
 *.bin
 *.ls
 *.ilk
+*.bson

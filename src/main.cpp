@@ -33,7 +33,9 @@ int blockX, blockY, selectedBlocks;
 ImGui::FileBrowser saveDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CreateNewDir), loadDialog;
 
 void load_example(const char *path) {
-    blocks->load_from_memory(camera, (const char *) Engine::File::readResourceFile(path));
+    int size = 0;
+    auto data = (const char *) Engine::File::readResourceFile(path, &size);
+    blocks->load_from_memory(camera, data, size);
     ImGuiToast toast(ImGuiToastType_Success, 2000);
     toast.set_title("%s loaded successfully", path);
     ImGui::InsertNotification(toast);
@@ -148,11 +150,11 @@ int main() {
     int size = 0;
     void *fontData = Engine::File::readResourceFile("FONT", &size);
     io->Fonts->AddFontFromMemoryTTF(fontData, size, 16.f, &font_cfg);
-    ImGui::MergeIconsWithLatestFont(18.f, false);
+    ImGui::MergeIconsWithLatestFont(16.f, false);
 
     saveDialog.SetTitle("Save scheme");
     loadDialog.SetTitle("Load scheme");
-    loadDialog.SetTypeFilters({".ls"});
+    loadDialog.SetTypeFilters({".ls", ".bson"});
 
     blocks = new BlockManager(window, quadVertices, (int) sizeof(quadVertices));
     PLOGI << "<< STARING GAME LOOP >>";
@@ -329,7 +331,7 @@ int main() {
                     if (ImGui::MenuItem("Source code"))
                         ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                      nullptr, SW_SHOW);
-                    ImGui::MenuItem(std::format("Version: 1.0.17 ({})", __DATE__).c_str(), nullptr, nullptr, false);
+                    ImGui::MenuItem(std::format("Version: 2.0.1 ({})", __DATE__).c_str(), nullptr, nullptr, false);
                     ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
                     ImGui::EndMenu();
                 }
@@ -386,7 +388,7 @@ int main() {
             strcpy_s(buf, 128, path);
             strcat_s(buf, 128, "\\");
             strcat_s(buf, 128, saveFilename);
-            strcat_s(buf, 128, ".ls");
+            strcat_s(buf, 128, ".bson");
             ImGuiToast toast(0);
             if (blocks->save(camera, buf)) {
                 toast.set_type(ImGuiToastType_Success);
