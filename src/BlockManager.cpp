@@ -204,12 +204,13 @@ bool BlockManager::save(Engine::Camera *camera, const char *path) {
     char *bin = new char[blocks.size() * 11 + 4];
     memcpy(bin, &camera->position.x, 4);
     memcpy(bin + 4, &camera->position.y, 4);
-    memcpy(bin + 8, &camera->zoom, 4);
+    float zoom = camera->getZoom();
+    memcpy(bin + 8, &zoom, 4);
     int size = (int) blocks.size();
     memcpy(bin + 12, &size, 4);
 
     int o = 16;
-    for (auto & block : blocks) {
+    for (auto &block: blocks) {
         block.second->write(bin + o, block.first);
         o += 11;
     }
@@ -253,22 +254,10 @@ void BlockManager::copy(int selected, int blockX, int blockY) {
         }
     }
 
-    auto *deflated = (unsigned char *) malloc(std::max(selected * 11, 30));
-    z_stream defstream;
-    defstream.zalloc = Z_NULL;
-    defstream.zfree = Z_NULL;
-    defstream.opaque = Z_NULL;
+    unsigned long length = 0;
+    auto *deflated = Engine::File::compress(b, selected * 11, &length);
 
-    defstream.avail_in = selected * 11;
-    defstream.next_in = b;
-    defstream.avail_out = std::max(selected * 11, 30);
-    defstream.next_out = deflated;
-
-    deflateInit(&defstream, Z_BEST_COMPRESSION);
-    deflate(&defstream, Z_FINISH);
-    deflateEnd(&defstream);
-
-    const std::string exportString = Base64::base64_encode(deflated, defstream.total_out);
+    const std::string exportString = Base64::base64_encode(deflated, length);
     glfwSetClipboardString(window->getId(), exportString.c_str());
 }
 
@@ -281,26 +270,14 @@ int BlockManager::paste(int blockX, int blockY) {
     const char *importString = glfwGetClipboardString(window->getId());
     std::vector<BYTE> bytes = Base64::base64_decode(std::string(importString));
     if (bytes.size() > 4) {
-        auto *inflated = (unsigned char *) malloc(bytes.size() * 8);
-        z_stream infstream;
-        infstream.zalloc = Z_NULL;
-        infstream.zfree = Z_NULL;
-        infstream.opaque = Z_NULL;
+        unsigned long length = 0;
+        auto *inflated = Engine::File::decompress(bytes.data(), bytes.size(), &length);
 
-        infstream.avail_in = bytes.size();
-        infstream.next_in = bytes.data();
-        infstream.avail_out = bytes.size() * 8;
-        infstream.next_out = inflated;
-
-        inflateInit(&infstream);
-        inflate(&infstream, Z_NO_FLUSH);
-        inflateEnd(&infstream);
-
-        if (infstream.total_out % 11 == 0) {
-            int count = infstream.total_out / 11;
+        if (length % 11 == 0) {
+            unsigned long count = length / 11UL;
             long long pos = 0;
-            for (int i = 0; i < count; i++) {
-                auto *block = new Block(reinterpret_cast<char *>(inflated) + i * 11, types, &pos);
+            for (unsigned long i = 0; i < count; i++) {
+                auto *block = new Block(reinterpret_cast<char *>(inflated) + i * 11UL, types, &pos);
                 int x = Block_X(pos) + blockX;
                 int y = Block_Y(pos) + blockY;
                 blocks[Block_TO_LONG(x, y)] = block;

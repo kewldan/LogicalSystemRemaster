@@ -6,7 +6,6 @@
 #include <mutex>
 #include "File.h"
 #include "Base64.h"
-#include "zlib.h"
 #include "Window.h"
 #include "Camera.h"
 
@@ -75,7 +74,7 @@ public:
 
     bool load(Engine::Camera *camera, const char *path);
 
-    void load_from_memory(Engine::Camera *camera, const char* data);
+    void load_from_memory(Engine::Camera *camera, const char *data);
 
     void select_all();
 

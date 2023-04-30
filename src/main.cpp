@@ -33,7 +33,7 @@ int blockX, blockY, selectedBlocks;
 ImGui::FileBrowser saveDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CreateNewDir), loadDialog;
 
 void load_example(const char *path) {
-    blocks->load_from_memory(camera, (const char*) Engine::File::readResourceFile(path));
+    blocks->load_from_memory(camera, (const char *) Engine::File::readResourceFile(path));
     ImGuiToast toast(ImGuiToastType_Success, 2000);
     toast.set_title("%s loaded successfully", path);
     ImGui::InsertNotification(toast);
@@ -112,9 +112,6 @@ float map(float value, float max1, float min2, float max2) {
 }
 
 int main() {
-    saveFilename = new char[128];
-    memset(saveFilename, 0, 128);
-
     Engine::Window::init();
     window = new Engine::Window(1280, 720, "Logical system");
     window->setIcon("data/textures/favicon.png");
@@ -130,9 +127,12 @@ int main() {
     pipeline = new RenderPipeline("block", "blur", "final", "background", "selection", window->width, window->height);
     io = &ImGui::GetIO();
 
+    saveFilename = new char[128];
+    memset(saveFilename, 0, 128);
+
     font_cfg.FontDataOwnedByAtlas = false;
     int size = 0;
-    void* fontData = Engine::File::readResourceFile("data/fonts/tahoma.ttf", &size);
+    void *fontData = Engine::File::readResourceFile("data/fonts/tahoma.ttf", &size);
     io->Fonts->AddFontFromMemoryTTF(fontData, size, 18.f, &font_cfg);
     ImGui::MergeIconsWithLatestFont(18.f, false);
 
@@ -207,7 +207,7 @@ int main() {
                 } else if (f) {
                     int s_LB = min(start.x, start.x + size.x) + camera->position.x - cameraDelta.x;
                     int s_BB = window->height - max(start.y, start.y + size.y) + camera->position.y -
-                             cameraDelta.y;
+                               cameraDelta.y;
 
                     int s_RB = s_LB + abs(size.x);
                     int s_TB = s_BB + abs(size.y);
@@ -418,7 +418,7 @@ int main() {
         Engine::HUD::end();
 
         if (!focused) {
-            float cameraSpeed = 500.f * camera->zoom * camera->zoom * io->DeltaTime;
+            float cameraSpeed = 500.f * camera->getZoom() * camera->getZoom() * io->DeltaTime;
             if (input->isKeyPressed(GLFW_KEY_A)) {
                 camera->position.x -= cameraSpeed;
             } else if (input->isKeyPressed(GLFW_KEY_D)) {
