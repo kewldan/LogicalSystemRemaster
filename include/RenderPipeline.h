@@ -23,17 +23,18 @@ public:
     int w, h;
     unsigned int pingpongFBO[2]{};
     unsigned int pingpongBuffer[2]{};
-    Engine::Shader *gShader, *blurShader, *finalShader, *backgroundShader, *selectionShader;
-    glm::vec3 blockDefaultColor, blockGlowColor;
-    unsigned int FBO{}, gAlbedo{}, gAlbedoHDR{}, screenVAO{}, screenVBO{}, quadVAO{}, quadVBO{};
+    Engine::Shader *gShader, *blurShader, *finalShader, *backgroundShader, *selectionShader, *glowShader;
+    glm::vec3 blockDefaultColor{}, blockGlowColor{};
+    unsigned int FBO{}, gAlbedo{}, screenVAO{}, screenVBO{}, quadVAO{}, quadVBO{}, intermediateFBO, screenTexture;
 
-    RenderPipeline(const char *gShaderPath, const char *blurShaderPath, const char *finalShaderPath,
-                   const char *backgroundShaderPath, const char *selectionShaderPath, int width, int height);
+    RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blurShader, Engine::Shader *finalShader,
+                   Engine::Shader *backgroundShader, Engine::Shader *selectionShader, Engine::Shader *glowShader, int width, int height);
 
     void resize(int nw, int nh);
 
     void beginPass(Engine::Camera *camera, bool bloom, unsigned int atlas, unsigned int blockVao,
-                   const std::function<void(Engine::Shader *)> &useFunction);
+                   const std::function<void(Engine::Shader *)> &useFunction,
+                   const std::function<void(Engine::Shader *)> &glowFunction);
 
     void drawSelection(Engine::Camera *camera, glm::vec2 position, glm::vec2 size) const;
 

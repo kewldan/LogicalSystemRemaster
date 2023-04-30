@@ -196,11 +196,12 @@ void BlockManager::setActive(int x, int y, BlockRotation rotation, int l) {
 
 void BlockManager::draw(int count) const {
     glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(BlockInfo) * count, info);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * count, info);
     glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, count);
 }
 
 bool BlockManager::save(Engine::Camera *camera, const char *path) {
+    if(Engine::File::exists(path)) return false;
     char *bin = new char[blocks.size() * 11 + 4];
     memcpy(bin, &camera->position.x, 4);
     memcpy(bin + 4, &camera->position.y, 4);
@@ -214,9 +215,7 @@ bool BlockManager::save(Engine::Camera *camera, const char *path) {
         block.second->write(bin + o, block.first);
         o += 11;
     }
-
     bool ok = Engine::File::writeFile(path, bin, size * 11 + 16);
-    delete[] bin;
     return ok;
 }
 
@@ -283,7 +282,7 @@ int BlockManager::paste(int blockX, int blockY) {
                 blocks[Block_TO_LONG(x, y)] = block;
                 block->updateMvp(x << 5, y << 5);
             }
-            return count;
+            return (int) count;
         } else {
             return -1;
         }

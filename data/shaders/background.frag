@@ -1,6 +1,5 @@
 #version 330
-layout (location = 0) out vec4 gAlbedo;
-layout (location = 1) out vec4 gAlbedoHDR;
+out vec4 gAlbedo;
 
 uniform vec2 offset, horizontal, vertical, screen;
 
@@ -15,5 +14,4 @@ void main()
     } else {
         gAlbedo = vec4(0.17, 0.18, 0.2, 1);
     }
-    gAlbedoHDR = vec4(0, 0, 0, 1);
 }

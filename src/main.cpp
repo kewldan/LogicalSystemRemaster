@@ -39,8 +39,8 @@ void load_example(const char *path) {
     ImGui::InsertNotification(toast);
 }
 
-void mouse_wheel_callback(GLFWwindow *w, double xoffset, double yoffset) {
-    camera->zoomIn((float) yoffset * -0.1f);
+void mouse_wheel_callback(GLFWwindow *w, double xOffset, double yOffset) {
+    camera->zoomIn((float) yOffset * -0.1f);
 }
 
 void cut() {
@@ -83,7 +83,7 @@ void key_callback(GLFWwindow *w, int key, int scancode, int action, int mods) {
         if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9) {
             playerInput.currentBlock = key == GLFW_KEY_0 ? 9 : key - GLFW_KEY_1;
             playerInput.currentBlock += 10 * input->isKeyPressed(GLFW_KEY_LEFT_SHIFT);
-            playerInput.currentBlock = min(playerInput.currentBlock, 14);
+            playerInput.currentBlock = std::min(playerInput.currentBlock, 14);
         } else if (key == GLFW_KEY_R) {
             playerInput.currentRotation = rotateBlock(playerInput.currentRotation,
                                                       input->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1 : 1);
@@ -124,7 +124,16 @@ int main() {
 
     Engine::HUD::init(window);
     camera = new Engine::Camera(window);
-    pipeline = new RenderPipeline("block", "blur", "final", "background", "selection", window->width, window->height);
+    pipeline = new RenderPipeline(
+            new Engine::Shader("block"),
+            new Engine::Shader("blur"),
+            new Engine::Shader("final"),
+            new Engine::Shader("background"),
+            new Engine::Shader("selection"),
+            new Engine::Shader("glow"),
+            window->width,
+            window->height
+    );
     io = &ImGui::GetIO();
 
     saveFilename = new char[128];
@@ -159,73 +168,98 @@ int main() {
         window->reset();
 
         pipeline->beginPass(camera, bloom, blocks->atlas, blocks->VAO, [](Engine::Shader *shader) {
-            int j = 0, x, y;
-            int LB = (int) camera->position.x + (int) camera->left - 16;
-            int RB = (int) camera->position.x + (int) camera->right + 16;
-            int BB = (int) camera->position.y + (int) camera->bottom - 16;
-            int TB = (int) camera->position.y + (int) camera->top + 16;
-            for (auto &it: blocks->blocks) {
-                x = Block_X(it.first) << 5;
-                y = Block_Y(it.first) << 5;
-                if (x > LB && x < RB && y > BB && y < TB) {
-                    blocks->info[j] = BlockInfo(it.second->type->id, it.second->active, it.second->selected,
-                                                it.second->getMVP());
-                    j++;
-                }
-                if (j == BLOCK_BATCHING) {
-                    blocks->draw(j);
-                    j = 0;
-                }
-            }
-            if (j > 0) {
-                blocks->draw(j);
-            }
+                                int j = 0, x, y;
+                                int LB = (int) camera->position.x + (int) camera->left - 16;
+                                int RB = (int) camera->position.x + (int) camera->right + 16;
+                                int BB = (int) camera->position.y + (int) camera->bottom - 16;
+                                int TB = (int) camera->position.y + (int) camera->top + 16;
+                                for (auto &it: blocks->blocks) {
+                                    x = Block_X(it.first) << 5;
+                                    y = Block_Y(it.first) << 5;
+                                    if (x > LB && x < RB && y > BB && y < TB) {
+                                        blocks->info[j] = BlockInfo(it.second->type->id, it.second->active, it.second->selected,
+                                                                    it.second->getMVP());
+                                        j++;
+                                    }
+                                    if (j == BLOCK_BATCHING) {
+                                        blocks->draw(j);
+                                        j = 0;
+                                    }
+                                }
+                                if (j > 0) {
+                                    blocks->draw(j);
+                                }
 
-            static bool f = false;
-            static ImVec2 start, delta;
-            static glm::vec2 cameraStart, cameraDelta, size;
-            if (input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
-                if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-                    if (!f) {
-                        start = io->MouseClickedPos[ImGuiMouseButton_Left];
-                        start.x = map(start.x, (float) window->width, camera->left, camera->right);
-                        start.y = map(start.y, (float) window->height, camera->bottom, camera->top);
+                                static bool f = false;
+                                static ImVec2 start, delta;
+                                static glm::vec2 cameraStart, cameraDelta, size;
+                                if (input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
+                                    if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                                        if (!f) {
+                                            start = io->MouseClickedPos[ImGuiMouseButton_Left];
+                                            start.x = map(start.x, (float) window->width, camera->left, camera->right);
+                                            start.y = map(start.y, (float) window->height, camera->bottom, camera->top);
 
-                        cameraStart = camera->position;
-                    }
-                    delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
-                    delta.x *= (camera->right - camera->left) / (float) window->width;
-                    delta.y *= (camera->top - camera->bottom) / (float) window->height;
-                    cameraDelta = glm::vec2(camera->position.x, camera->position.y) - cameraStart;
+                                            cameraStart = camera->position;
+                                        }
+                                        delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+                                        delta.x *= (camera->right - camera->left) / (float) window->width;
+                                        delta.y *= (camera->top - camera->bottom) / (float) window->height;
+                                        cameraDelta = glm::vec2(camera->position.x, camera->position.y) - cameraStart;
 
-                    size = glm::vec2(delta.x + cameraDelta.x, delta.y - cameraDelta.y);
+                                        size = glm::vec2(delta.x + cameraDelta.x, delta.y - cameraDelta.y);
 
-                    int s_x = min(start.x, start.x + size.x);
-                    int s_y = max(start.y, start.y + size.y);
+                                        int s_x = (int) std::min(start.x, start.x + size.x);
+                                        int s_y = (int) std::max(start.y, start.y + size.y);
 
-                    pipeline->drawSelection(camera, glm::vec2(s_x, window->height - s_y) - cameraDelta, glm::abs(size));
-                } else if (f) {
-                    int s_LB = min(start.x, start.x + size.x) + camera->position.x - cameraDelta.x;
-                    int s_BB = window->height - max(start.y, start.y + size.y) + camera->position.y -
-                               cameraDelta.y;
+                                        pipeline->drawSelection(camera, glm::vec2(s_x, window->height - s_y) - cameraDelta, glm::abs(size));
+                                    } else if (f) {
+                                        int s_LB = (int) (std::min(start.x, start.x + size.x) + camera->position.x - cameraDelta.x);
+                                        int s_BB = (int) ((float) window->height - std::max(start.y, start.y + size.y) +
+                                                          camera->position.y -
+                                                          cameraDelta.y);
 
-                    int s_RB = s_LB + abs(size.x);
-                    int s_TB = s_BB + abs(size.y);
-                    selectedBlocks = 0;
-                    for (auto &it: blocks->blocks) {
-                        int px = Block_X(it.first) << 5;
-                        int py = Block_Y(it.first) << 5;
-                        it.second->selected = px > s_LB && px < s_RB && py > s_BB && py < s_TB;
-                        selectedBlocks += it.second->selected;
-                    }
+                                        int s_RB = s_LB + (int) abs(size.x);
+                                        int s_TB = s_BB + (int) abs(size.y);
+                                        selectedBlocks = 0;
+                                        for (auto &it: blocks->blocks) {
+                                            int px = Block_X(it.first) << 5;
+                                            int py = Block_Y(it.first) << 5;
+                                            it.second->selected = px > s_LB && px < s_RB && py > s_BB && py < s_TB;
+                                            selectedBlocks += it.second->selected;
+                                        }
 
-                    ImGuiToast toast(ImGuiToastType_Info, 2000);
-                    toast.set_title("Selected %d blocks", selectedBlocks);
-                    ImGui::InsertNotification(toast);
-                }
-            }
-            f = ImGui::IsMouseDragging(ImGuiMouseButton_Left);
-        });
+                                        ImGuiToast toast(ImGuiToastType_Info, 2000);
+                                        toast.set_title("Selected %d blocks", selectedBlocks);
+                                        ImGui::InsertNotification(toast);
+                                    }
+                                }
+                                f = ImGui::IsMouseDragging(ImGuiMouseButton_Left);
+                            },
+                            [](Engine::Shader *shader) {
+                                int j = 0, x, y;
+                                int LB = (int) camera->position.x + (int) camera->left - 16;
+                                int RB = (int) camera->position.x + (int) camera->right + 16;
+                                int BB = (int) camera->position.y + (int) camera->bottom - 16;
+                                int TB = (int) camera->position.y + (int) camera->top + 16;
+                                for (auto &it: blocks->blocks) {
+                                    x = Block_X(it.first) << 5;
+                                    y = Block_Y(it.first) << 5;
+                                    if (x > LB && x < RB && y > BB && y < TB && it.second->active) {
+                                        blocks->info[j] = BlockInfo(it.second->type->id, it.second->active,
+                                                                    it.second->selected,
+                                                                    it.second->getMVP());
+                                        j++;
+                                    }
+                                    if (j == BLOCK_BATCHING) {
+                                        blocks->draw(j);
+                                        j = 0;
+                                    }
+                                }
+                                if (j > 0) {
+                                    blocks->draw(j);
+                                }
+                            });
 
         Engine::HUD::begin();
         ImGui::SetNextWindowPos(ImVec2(15, 15), ImGuiCond_Once);
@@ -293,7 +327,7 @@ int main() {
                     if (ImGui::MenuItem("Source code"))
                         ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                      nullptr, SW_SHOW);
-                    ImGui::MenuItem(std::format("Version: 1.0.14 ({})", __DATE__).c_str(), nullptr, nullptr, false);
+                    ImGui::MenuItem(std::format("Version: 1.0.15 ({})", __DATE__).c_str(), nullptr, nullptr, false);
                     ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
                     ImGui::EndMenu();
                 }

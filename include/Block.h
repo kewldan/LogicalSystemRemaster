@@ -29,8 +29,8 @@ public:
 
 BlockRotation rotateBlock(BlockRotation r, int k);
 
-#define Block_X(l) static_cast<int>(l >> 32)
-#define Block_Y(l) static_cast<int>(l & 0xFFFFFFFFL)
+#define Block_X(l) static_cast<int>((l) >> 32)
+#define Block_Y(l) static_cast<int>((l) & 0xFFFFFFFFL)
 
 long long Block_TO_LONG(int x, int y);
 
