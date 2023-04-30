@@ -184,10 +184,6 @@ void BlockManager::setActive(int x, int y) {
     }
 }
 
-void BlockManager::setActive(int x, int y, BlockRotation rotation) {
-    setActive(x, y, rotation, 1);
-}
-
 void BlockManager::setActive(int x, int y, BlockRotation rotation, int l) {
     ASSERT("Block length must be > 0", l > 0);
     if (rotation == 0) {
