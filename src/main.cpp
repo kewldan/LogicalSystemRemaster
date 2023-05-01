@@ -11,6 +11,7 @@
 #include "RenderPipeline.h"
 #include <format>
 #include "Input.h"
+#include "Settings.h"
 
 Engine::Window *window;
 Engine::Input *input;
@@ -28,8 +29,10 @@ struct PlayerInput {
 } playerInput;
 
 bool saveMenu = false, bloom = true, controlsMenu = false;
+bool vsync = false, _vsync = true;
 char *saveFilename = nullptr;
 int blockX, blockY, selectedBlocks;
+Engine::Settings *settings;
 ImGui::FileBrowser saveDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CreateNewDir), loadDialog;
 
 void load_example(const char *path) {
@@ -118,6 +121,34 @@ float map(float value, float max1, float min2, float max2) {
     return min2 + value * (max2 - min2) / max1;
 }
 
+void set_setting_values(){
+    settings->json["tps"] = blocks->TPS;
+    settings->json["glowColor"]["x"] =  pipeline->blockGlowColor.x;
+    settings->json["glowColor"]["y"] =  pipeline->blockGlowColor.y;
+    settings->json["glowColor"]["z"] =  pipeline->blockGlowColor.z;
+    settings->json["blockColor"]["x"] = pipeline->blockDefaultColor.x;
+    settings->json["blockColor"]["y"] = pipeline->blockDefaultColor.y;
+    settings->json["blockColor"]["z"] = pipeline->blockDefaultColor.z;
+    settings->json["vsync"] = vsync;
+    settings->json["bloom"] = bloom;
+}
+
+void get_setting_values(){
+    blocks->TPS = GET_DEFAULT(settings->json, "tps", int, blocks->TPS);
+    _vsync = GET_DEFAULT(settings->json, "vsync", bool, true);
+    bloom = GET_DEFAULT(settings->json, "bloom", bool, false);
+    if(settings->json.contains("glowColor")) {
+        pipeline->blockGlowColor.x = GET_DEFAULT(settings->json["glowColor"], "x", float, pipeline->blockGlowColor.x);
+        pipeline->blockGlowColor.y = GET_DEFAULT(settings->json["glowColor"], "y", float, pipeline->blockGlowColor.y);
+        pipeline->blockGlowColor.z = GET_DEFAULT(settings->json["glowColor"], "z", float, pipeline->blockGlowColor.z);
+    }
+    if(settings->json.contains("blockColor")){
+        pipeline->blockDefaultColor.x = GET_DEFAULT(settings->json["blockColor"], "x", float, pipeline->blockDefaultColor.x);
+        pipeline->blockDefaultColor.y = GET_DEFAULT(settings->json["blockColor"], "y", float, pipeline->blockDefaultColor.y);
+        pipeline->blockDefaultColor.z = GET_DEFAULT(settings->json["blockColor"], "z", float, pipeline->blockDefaultColor.z);
+    }
+}
+
 int main() {
     Engine::Window::init();
     window = new Engine::Window(1280, 720, "Logical system");
@@ -131,6 +162,7 @@ int main() {
 
     Engine::HUD::init(window);
     camera = new Engine::Camera(window);
+    settings = new Engine::Settings("LogicalSystem");
     pipeline = new RenderPipeline(
             new Engine::Shader("block"),
             new Engine::Shader("blur"),
@@ -157,6 +189,15 @@ int main() {
     loadDialog.SetTypeFilters({".ls", ".bson"});
 
     blocks = new BlockManager(window, quadVertices, (int) sizeof(quadVertices));
+
+    if(settings->exists()) {
+        settings->load();
+        get_setting_values();
+    }else{
+        set_setting_values();
+        settings->save();
+    }
+
     PLOGI << "<< STARING GAME LOOP >>";
     do {
         camera->update();
@@ -289,6 +330,10 @@ int main() {
                         loadDialog.Open();
                     if (ImGui::MenuItem("\xef\x83\x87  Save", "Ctrl + S"))
                         saveMenu = true;
+                    if(ImGui::MenuItem("Save settings")){
+                        set_setting_values();
+                        settings->save();
+                    }
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Edit")) {
@@ -311,7 +356,6 @@ int main() {
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Graphics")) {
-                    static bool vsync = false, _vsync = true;
                     ImGui::MenuItem("VSync", nullptr, &_vsync);
 
                     if (vsync != _vsync) {
