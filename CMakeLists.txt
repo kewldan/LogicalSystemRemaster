@@ -2,6 +2,7 @@
 project("LogicalSystem")
 
 add_definitions(-DBLOCK_BATCHING=2048)
+add_definitions(-DFILE_RESOURCES=true)
 
 set(CMAKE_CXX_STANDARD 20)
 set(LIBRARIES_PATH "E:/Projects/libraries")
@@ -16,7 +17,6 @@ include_directories(
         "${LIBRARIES_PATH}/glfw/include"
         "${LIBRARIES_PATH}/glm/include"
         "${LIBRARIES_PATH}/zlib"
-        "${LIBRARIES_PATH}/freetype/include"
         "${LIBRARIES_PATH}/bson"
         "${LIBRARIES_PATH}/imgui"
         "${PROJECT_SOURCE_DIR}/include"
@@ -26,7 +26,6 @@ include_directories(
 link_directories("${LIBRARIES_PATH}/glfw/lib-vc2022")
 link_directories("${LIBRARIES_PATH}/zlib/lib")
 link_directories("${LIBRARIES_PATH}/engine/lib")
-link_directories("${LIBRARIES_PATH}/freetype/lib")
 
 file(GLOB PROJECT_SRCS
         "include/*.h" "src/*.cpp"

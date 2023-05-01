@@ -154,6 +154,8 @@ int main() {
     window = new Engine::Window(1280, 720, "Logical system");
     window->setIcon("data/textures/favicon.png");
     input = new Engine::Input(window->getId());
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glfwSetScrollCallback(window->getId(), mouse_wheel_callback);
     glfwSetKeyCallback(window->getId(), key_callback);
@@ -164,12 +166,12 @@ int main() {
     camera = new Engine::Camera(window);
     settings = new Engine::Settings("LogicalSystem");
     pipeline = new RenderPipeline(
-            new Engine::Shader("block"),
-            new Engine::Shader("blur"),
-            new Engine::Shader("final"),
-            new Engine::Shader("background"),
-            new Engine::Shader("selection"),
-            new Engine::Shader("glow"),
+            new Engine::Shader("block", FILE_RESOURCES),
+            new Engine::Shader("blur", FILE_RESOURCES),
+            new Engine::Shader("final", FILE_RESOURCES),
+            new Engine::Shader("background", FILE_RESOURCES),
+            new Engine::Shader("quad", FILE_RESOURCES),
+            new Engine::Shader("glow", FILE_RESOURCES),
             window->width,
             window->height
     );
@@ -391,7 +393,7 @@ int main() {
             ImGui::ColorEdit3("Default color", reinterpret_cast<float *>(&pipeline->blockDefaultColor));
             ImGui::ColorEdit3("Glow color", reinterpret_cast<float *>(&pipeline->blockGlowColor));
             ImGui::Combo("Block", &playerInput.currentBlock,
-                         "Wire straight\0Wire angled right\0Wire angled left\0Wire T\0Wire cross\0Wire 2\0Wire 3\0NOT\0AND\0NAND\0XOR\0NXOR\0Switch\0Clock\0Lamp");
+                         "Wire straight\0Wire angled right\0Wire angled left\0Wire T\0Wire cross\0Wire 2\0Wire 3\0NOT\0AND\0NAND\0XOR\0NXOR\0Switch\0Clock\0Lamp\0");
             if (ImGui::IsItemHovered()) {
                 ImGui::BeginTooltip();
                 ImGui::Text("Use 0-9 for 0-9 elements\nand SHIFT for 10-14 elements");
