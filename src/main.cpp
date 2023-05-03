@@ -1,6 +1,7 @@
 ﻿#define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define GLFW_INCLUDE_NONE
+#define STB_TRUETYPE_IMPLEMENTATION
 
 #include <plog/Log.h>
 #include "Window.h"
@@ -12,6 +13,7 @@
 #include <format>
 #include "Input.h"
 #include "Settings.h"
+#include "Font.h"
 
 Engine::Window *window;
 Engine::Input *input;
@@ -32,6 +34,7 @@ bool saveMenu = false, bloom = true, controlsMenu = false;
 bool vsync = false, _vsync = true;
 char *saveFilename = nullptr;
 int blockX, blockY, selectedBlocks;
+Engine::Font* font;
 Engine::Settings *settings;
 ImGui::FileBrowser saveDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CreateNewDir), loadDialog;
 
@@ -166,12 +169,12 @@ int main() {
     camera = new Engine::Camera(window);
     settings = new Engine::Settings("LogicalSystem");
     pipeline = new RenderPipeline(
-            new Engine::Shader("block", FILE_RESOURCES),
-            new Engine::Shader("blur", FILE_RESOURCES),
-            new Engine::Shader("final", FILE_RESOURCES),
-            new Engine::Shader("background", FILE_RESOURCES),
-            new Engine::Shader("quad", FILE_RESOURCES),
-            new Engine::Shader("glow", FILE_RESOURCES),
+            new Engine::Shader("block"),
+            new Engine::Shader("blur"),
+            new Engine::Shader("final"),
+            new Engine::Shader("background"),
+            new Engine::Shader("quad"),
+            new Engine::Shader("glow"),
             window->width,
             window->height
     );
@@ -179,6 +182,9 @@ int main() {
 
     saveFilename = new char[128];
     memset(saveFilename, 0, 128);
+
+    font = new Engine::Font(pipeline->quadVAO, new Engine::Shader("text"), "FONT");
+    font->setSize(16.f);
 
     font_cfg.FontDataOwnedByAtlas = false;
     int size = 0;
@@ -239,52 +245,6 @@ int main() {
                                 if (j > 0) {
                                     blocks->draw(j);
                                 }
-
-                                static bool f = false;
-                                static ImVec2 start, delta;
-                                static glm::vec2 cameraStart, cameraDelta, size;
-                                if (input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
-                                    if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-                                        if (!f) {
-                                            start = io->MouseClickedPos[ImGuiMouseButton_Left];
-                                            start.x = map(start.x, (float) window->width, camera->left, camera->right);
-                                            start.y = map(start.y, (float) window->height, camera->bottom, camera->top);
-
-                                            cameraStart = camera->position;
-                                        }
-                                        delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
-                                        delta.x *= (camera->right - camera->left) / (float) window->width;
-                                        delta.y *= (camera->top - camera->bottom) / (float) window->height;
-                                        cameraDelta = glm::vec2(camera->position.x, camera->position.y) - cameraStart;
-
-                                        size = glm::vec2(delta.x + cameraDelta.x, delta.y - cameraDelta.y);
-
-                                        int s_x = (int) std::min(start.x, start.x + size.x);
-                                        int s_y = (int) std::max(start.y, start.y + size.y);
-
-                                        pipeline->drawSelection(camera, glm::vec2(s_x, window->height - s_y) - cameraDelta, glm::abs(size));
-                                    } else if (f) {
-                                        int s_LB = (int) (std::min(start.x, start.x + size.x) + camera->position.x - cameraDelta.x);
-                                        int s_BB = (int) ((float) window->height - std::max(start.y, start.y + size.y) +
-                                                          camera->position.y -
-                                                          cameraDelta.y);
-
-                                        int s_RB = s_LB + (int) abs(size.x);
-                                        int s_TB = s_BB + (int) abs(size.y);
-                                        selectedBlocks = 0;
-                                        for (auto &it: blocks->blocks) {
-                                            int px = Block_X(it.first) << 5;
-                                            int py = Block_Y(it.first) << 5;
-                                            it.second->selected = px > s_LB && px < s_RB && py > s_BB && py < s_TB;
-                                            selectedBlocks += it.second->selected;
-                                        }
-
-                                        ImGuiToast toast(ImGuiToastType_Info, 2000);
-                                        toast.set_title("Selected %d blocks", selectedBlocks);
-                                        ImGui::InsertNotification(toast);
-                                    }
-                                }
-                                f = ImGui::IsMouseDragging(ImGuiMouseButton_Left);
                             },
                             [](Engine::Shader *shader) {
                                 int j = 0, x, y;
@@ -310,6 +270,53 @@ int main() {
                                     blocks->draw(j);
                                 }
                             });
+
+        static bool f = false;
+        static ImVec2 start, delta;
+        static glm::vec2 cameraStart, cameraDelta, size;
+        if (input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
+            if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                if (!f) {
+                    cameraStart = camera->position;
+                }
+                start = io->MouseClickedPos[ImGuiMouseButton_Left];
+                start.x = map(start.x, (float) window->width, camera->left, camera->right);
+                start.y = map(start.y, (float) window->height, camera->bottom, camera->top);
+                delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+                delta.x *= (camera->right - camera->left) / (float) window->width;
+                delta.y *= (camera->top - camera->bottom) / (float) window->height;
+                cameraDelta = glm::vec2(camera->position.x, camera->position.y) - cameraStart;
+
+                size = glm::vec2(delta.x + cameraDelta.x, delta.y - cameraDelta.y);
+
+                int s_x = (int) std::min(start.x, start.x + size.x);
+                int s_y = (int) std::max(start.y, start.y + size.y);
+
+                pipeline->drawSelection(camera, glm::vec2(s_x, window->height - s_y) - cameraDelta, glm::abs(size));
+            } else if (f) {
+                int s_LB = (int) (std::min(start.x, start.x + size.x) + camera->position.x - cameraDelta.x);
+                int s_BB = (int) ((float) window->height - std::max(start.y, start.y + size.y) +
+                                  camera->position.y -
+                                  cameraDelta.y);
+
+                int s_RB = s_LB + (int) abs(size.x);
+                int s_TB = s_BB + (int) abs(size.y);
+                selectedBlocks = 0;
+                for (auto &it: blocks->blocks) {
+                    int px = Block_X(it.first) << 5;
+                    int py = Block_Y(it.first) << 5;
+                    it.second->selected = px > s_LB && px < s_RB && py > s_BB && py < s_TB;
+                    selectedBlocks += it.second->selected;
+                }
+
+                ImGuiToast toast(ImGuiToastType_Info, 2000);
+                toast.set_title("Selected %d blocks", selectedBlocks);
+                ImGui::InsertNotification(toast);
+            }
+        }
+        f = ImGui::IsMouseDragging(ImGuiMouseButton_Left);
+
+        font->text(camera, 300.f, 100.f, "ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789");
 
         Engine::HUD::begin();
         ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Once);

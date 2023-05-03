@@ -192,7 +192,7 @@ void RenderPipeline::drawSelection(Engine::Camera *camera, glm::vec2 position, g
     glm::mat4 mvp = glm::translate(glm::mat4(1), glm::vec3(position, -0.1f));
     selectionShader->upload("mvp", glm::scale(mvp, glm::vec3(size, 1.f)));
     selectionShader->upload("size", size);
-    selectionShader->upload("width", 1.5f);
+    selectionShader->upload("width", 2.f);
     selectionShader->upload("color", glm::vec4(0.01, 0.6, 1, 0.1));
     selectionShader->upload("borderColor", glm::vec4(0.015, 0.6, 1, 1));
     drawRectQuad();
