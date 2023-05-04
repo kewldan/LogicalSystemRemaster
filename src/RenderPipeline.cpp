@@ -102,8 +102,7 @@ void RenderPipeline::resize(int nw, int nh) {
 }
 
 void RenderPipeline::beginPass(Engine::Camera *camera, bool bloom, unsigned int atlas, unsigned int blockVao,
-                               const std::function<void(Engine::Shader *)> &useFunction,
-                               const std::function<void(Engine::Shader *)> &glowFunction) {
+                               const std::function<void()> &drawFunction) {
     glViewport(0, 0, w, h);
     glBindFramebuffer(GL_FRAMEBUFFER, FBO);
     glClearColor(0, 0, 0, 0);
@@ -130,7 +129,7 @@ void RenderPipeline::beginPass(Engine::Camera *camera, bool bloom, unsigned int 
     glBindTexture(GL_TEXTURE_2D_ARRAY, atlas);
 
     glBindVertexArray(blockVao);
-    useFunction(gShader);
+    drawFunction();
 
     glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[0]);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -157,7 +156,7 @@ void RenderPipeline::beginPass(Engine::Camera *camera, bool bloom, unsigned int 
         glBindTexture(GL_TEXTURE_2D_ARRAY, atlas);
 
         glBindVertexArray(blockVao);
-        glowFunction(glowShader);
+        drawFunction();
         blurShader->bind();
         blurShader->upload("image", 0);
         for (int i = 0; i < 12; i++) {

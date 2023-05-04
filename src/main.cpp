@@ -12,8 +12,6 @@
 #include "RenderPipeline.h"
 #include <format>
 #include "Input.h"
-#include "Settings.h"
-#include "Font.h"
 
 Engine::Window *window;
 Engine::Input *input;
@@ -30,12 +28,9 @@ struct PlayerInput {
     int currentRotation;
 } playerInput;
 
-bool saveMenu = false, bloom = true, controlsMenu = false;
-bool vsync = false, _vsync = true;
+bool saveMenu, bloom = true, vsync, _vsync = true;;
 char *saveFilename = nullptr;
 int blockX, blockY, selectedBlocks;
-Engine::Font* font;
-Engine::Settings *settings;
 ImGui::FileBrowser saveDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CreateNewDir), loadDialog;
 
 void load_example(const char *path) {
@@ -86,70 +81,8 @@ void select_all() {
     ImGui::InsertNotification(toast);
 }
 
-void key_callback(GLFWwindow *w, int key, int scancode, int action, int mods) {
-    if (action == GLFW_PRESS) {
-        if(!io->WantCaptureKeyboard) {
-            if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9) {
-                playerInput.currentBlock = key == GLFW_KEY_0 ? 9 : key - GLFW_KEY_1;
-                playerInput.currentBlock += 10 * input->isKeyPressed(GLFW_KEY_LEFT_SHIFT);
-                playerInput.currentBlock = std::min(playerInput.currentBlock, 14);
-            } else if (key == GLFW_KEY_R) {
-                playerInput.currentRotation = rotateBlock(playerInput.currentRotation,
-                                                          input->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1 : 1);
-            }
-        }
-        if (key == GLFW_KEY_DELETE) {
-            blocks->delete_selected();
-        } else if (input->isKeyPressed(GLFW_KEY_LEFT_CONTROL)) {
-            if (key == GLFW_KEY_S) {
-                saveMenu = true;
-            } else if (key == GLFW_KEY_O) {
-                loadDialog.Open();
-            } else if (key == GLFW_KEY_X) {
-                cut();
-            } else if (key == GLFW_KEY_C) {
-                copy();
-            } else if (key == GLFW_KEY_V) {
-                paste();
-            } else if (key == GLFW_KEY_A) {
-                select_all();
-            }else if(key == GLFW_KEY_N){
-                blocks->blocks.clear();
-            }
-        }
-    }
-}
-
 float map(float value, float max1, float min2, float max2) {
     return min2 + value * (max2 - min2) / max1;
-}
-
-void set_setting_values(){
-    settings->json["tps"] = blocks->TPS;
-    settings->json["glowColor"]["x"] =  pipeline->blockGlowColor.x;
-    settings->json["glowColor"]["y"] =  pipeline->blockGlowColor.y;
-    settings->json["glowColor"]["z"] =  pipeline->blockGlowColor.z;
-    settings->json["blockColor"]["x"] = pipeline->blockDefaultColor.x;
-    settings->json["blockColor"]["y"] = pipeline->blockDefaultColor.y;
-    settings->json["blockColor"]["z"] = pipeline->blockDefaultColor.z;
-    settings->json["vsync"] = vsync;
-    settings->json["bloom"] = bloom;
-}
-
-void get_setting_values(){
-    blocks->TPS = GET_DEFAULT(settings->json, "tps", int, blocks->TPS);
-    _vsync = GET_DEFAULT(settings->json, "vsync", bool, true);
-    bloom = GET_DEFAULT(settings->json, "bloom", bool, false);
-    if(settings->json.contains("glowColor")) {
-        pipeline->blockGlowColor.x = GET_DEFAULT(settings->json["glowColor"], "x", float, pipeline->blockGlowColor.x);
-        pipeline->blockGlowColor.y = GET_DEFAULT(settings->json["glowColor"], "y", float, pipeline->blockGlowColor.y);
-        pipeline->blockGlowColor.z = GET_DEFAULT(settings->json["glowColor"], "z", float, pipeline->blockGlowColor.z);
-    }
-    if(settings->json.contains("blockColor")){
-        pipeline->blockDefaultColor.x = GET_DEFAULT(settings->json["blockColor"], "x", float, pipeline->blockDefaultColor.x);
-        pipeline->blockDefaultColor.y = GET_DEFAULT(settings->json["blockColor"], "y", float, pipeline->blockDefaultColor.y);
-        pipeline->blockDefaultColor.z = GET_DEFAULT(settings->json["blockColor"], "z", float, pipeline->blockDefaultColor.z);
-    }
 }
 
 int main() {
@@ -160,14 +93,14 @@ int main() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    input->registerCallbacks();
+
     glfwSetScrollCallback(window->getId(), mouse_wheel_callback);
-    glfwSetKeyCallback(window->getId(), key_callback);
 
     PLOGI << "<< LOADING ASSETS >>";
 
     Engine::HUD::init(window);
     camera = new Engine::Camera(window);
-    settings = new Engine::Settings("LogicalSystem");
     pipeline = new RenderPipeline(
             new Engine::Shader("block"),
             new Engine::Shader("blur"),
@@ -183,9 +116,6 @@ int main() {
     saveFilename = new char[128];
     memset(saveFilename, 0, 128);
 
-    font = new Engine::Font(pipeline->quadVAO, new Engine::Shader("text"), "FONT");
-    font->setSize(16.f);
-
     font_cfg.FontDataOwnedByAtlas = false;
     int size = 0;
     void *fontData = Engine::File::readResourceFile("FONT", &size);
@@ -198,18 +128,11 @@ int main() {
 
     blocks = new BlockManager(window, quadVertices, (int) sizeof(quadVertices));
 
-    if(settings->exists()) {
-        settings->load();
-        get_setting_values();
-    }else{
-        set_setting_values();
-        settings->save();
-    }
-
     PLOGI << "<< STARING GAME LOOP >>";
     do {
-        camera->update();
         input->update();
+        camera->update();
+        window->reset();
 
         if (window->isResized()) {
             pipeline->resize(window->width, window->height);
@@ -221,128 +144,156 @@ int main() {
                               0.5f);
         blockY = (int) floorf((((float) window->height - cursorY) + camera->position.y) / 32.f +
                               0.5f);
-        window->reset();
 
-        pipeline->beginPass(camera, bloom, blocks->atlas, blocks->VAO, [](Engine::Shader *shader) {
-                                int j = 0, x, y;
-                                int LB = (int) camera->position.x + (int) camera->left - 16;
-                                int RB = (int) camera->position.x + (int) camera->right + 16;
-                                int BB = (int) camera->position.y + (int) camera->bottom - 16;
-                                int TB = (int) camera->position.y + (int) camera->top + 16;
-                                for (auto &it: blocks->blocks) {
-                                    x = Block_X(it.first) << 5;
-                                    y = Block_Y(it.first) << 5;
-                                    if (x > LB && x < RB && y > BB && y < TB) {
-                                        blocks->info[j] = BlockInfo(it.second->type->id, it.second->active, it.second->selected,
-                                                                    it.second->getMVP());
-                                        j++;
-                                    }
-                                    if (j == BLOCK_BATCHING) {
-                                        blocks->draw(j);
-                                        j = 0;
-                                    }
-                                }
-                                if (j > 0) {
-                                    blocks->draw(j);
-                                }
-                            },
-                            [](Engine::Shader *shader) {
-                                int j = 0, x, y;
-                                int LB = (int) camera->position.x + (int) camera->left - 16;
-                                int RB = (int) camera->position.x + (int) camera->right + 16;
-                                int BB = (int) camera->position.y + (int) camera->bottom - 16;
-                                int TB = (int) camera->position.y + (int) camera->top + 16;
-                                for (auto &it: blocks->blocks) {
-                                    x = Block_X(it.first) << 5;
-                                    y = Block_Y(it.first) << 5;
-                                    if (x > LB && x < RB && y > BB && y < TB && it.second->active) {
-                                        blocks->info[j] = BlockInfo(it.second->type->id, it.second->active,
-                                                                    it.second->selected,
-                                                                    it.second->getMVP());
-                                        j++;
-                                    }
-                                    if (j == BLOCK_BATCHING) {
-                                        blocks->draw(j);
-                                        j = 0;
-                                    }
-                                }
-                                if (j > 0) {
-                                    blocks->draw(j);
-                                }
-                            });
-
-        static bool f = false;
-        static ImVec2 start, delta;
-        static glm::vec2 cameraStart, cameraDelta, size;
-        if (input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
-            if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-                if (!f) {
-                    cameraStart = camera->position;
+        if (!io->WantCaptureKeyboard) {
+            for (int i = 0; i <= 10; i++) {
+                if (input->isKeyJustPressed(GLFW_KEY_0 + i)) {
+                    playerInput.currentBlock = !i ? 9 : i - 1;
+                    playerInput.currentBlock += 10 * input->isKeyPressed(GLFW_KEY_LEFT_SHIFT);
+                    playerInput.currentBlock = std::min(playerInput.currentBlock, 14);
+                    break;
                 }
-                start = io->MouseClickedPos[ImGuiMouseButton_Left];
-                start.x = map(start.x, (float) window->width, camera->left, camera->right);
-                start.y = map(start.y, (float) window->height, camera->bottom, camera->top);
-                delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
-                delta.x *= (camera->right - camera->left) / (float) window->width;
-                delta.y *= (camera->top - camera->bottom) / (float) window->height;
-                cameraDelta = glm::vec2(camera->position.x, camera->position.y) - cameraStart;
-
-                size = glm::vec2(delta.x + cameraDelta.x, delta.y - cameraDelta.y);
-
-                int s_x = (int) std::min(start.x, start.x + size.x);
-                int s_y = (int) std::max(start.y, start.y + size.y);
-
-                pipeline->drawSelection(camera, glm::vec2(s_x, window->height - s_y) - cameraDelta, glm::abs(size));
-            } else if (f) {
-                int s_LB = (int) (std::min(start.x, start.x + size.x) + camera->position.x - cameraDelta.x);
-                int s_BB = (int) ((float) window->height - std::max(start.y, start.y + size.y) +
-                                  camera->position.y -
-                                  cameraDelta.y);
-
-                int s_RB = s_LB + (int) abs(size.x);
-                int s_TB = s_BB + (int) abs(size.y);
-                selectedBlocks = 0;
-                for (auto &it: blocks->blocks) {
-                    int px = Block_X(it.first) << 5;
-                    int py = Block_Y(it.first) << 5;
-                    it.second->selected = px > s_LB && px < s_RB && py > s_BB && py < s_TB;
-                    selectedBlocks += it.second->selected;
+            }
+            if (input->isKeyJustPressed(GLFW_KEY_R)) {
+                playerInput.currentRotation = rotateBlock(playerInput.currentRotation,
+                                                          input->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1 : 1);
+            }
+            if (input->isKeyJustPressed(GLFW_KEY_DELETE)) {
+                blocks->delete_selected();
+            }
+            if (input->isKeyPressed(GLFW_KEY_LEFT_CONTROL)) {
+                if (input->isKeyJustPressed(GLFW_KEY_S)) {
+                    saveMenu = true;
                 }
+                if (input->isKeyJustPressed(GLFW_KEY_O)) {
+                    loadDialog.Open();
+                }
+                if (input->isKeyJustPressed(GLFW_KEY_X)) {
+                    cut();
+                }
+                if (input->isKeyJustPressed(GLFW_KEY_C)) {
+                    copy();
+                }
+                if (input->isKeyJustPressed(GLFW_KEY_V)) {
+                    paste();
+                }
+                if (input->isKeyJustPressed(GLFW_KEY_A)) {
+                    select_all();
+                }
+                if (input->isKeyJustPressed(GLFW_KEY_N)) {
+                    blocks->blocks.clear();
+                }
+            }
 
-                ImGuiToast toast(ImGuiToastType_Info, 2000);
-                toast.set_title("Selected %d blocks", selectedBlocks);
-                ImGui::InsertNotification(toast);
+            float cameraSpeed = 500.f * camera->getZoom() * camera->getZoom() * io->DeltaTime;
+            if (input->isKeyPressed(GLFW_KEY_A)) {
+                camera->position.x -= cameraSpeed;
+            }
+            if (input->isKeyPressed(GLFW_KEY_D)) {
+                camera->position.x += cameraSpeed;
+            }
+
+            if (input->isKeyPressed(GLFW_KEY_W)) {
+                camera->position.y += cameraSpeed;
+            }
+            if (input->isKeyPressed(GLFW_KEY_S)) {
+                camera->position.y -= cameraSpeed;
+            }
+            if (input->isKeyPressed(GLFW_KEY_A) || input->isKeyPressed(GLFW_KEY_D) ||
+                input->isKeyPressed(GLFW_KEY_W) || input->isKeyPressed(GLFW_KEY_S)) {
+                camera->updateView();
+            }
+            if (!io->WantCaptureMouse) {
+                if (!input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
+                    Block *block = blocks->get(blockX, blockY);
+                    if (block) {
+                        if (input->isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_LEFT)) {
+                            if (block->type->id == blocks->types[12].id) {
+                                block->active ^= 1;
+                            } else {
+                                blocks->rotate(blockX, blockY, rotateBlock(block->rotation,
+                                                                           input->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1.f
+                                                                                                                    : 1.f));
+                            }
+                        }
+                    } else if (input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
+                        if (!blocks->has(blockX, blockY)) {
+                            blocks->set(blockX, blockY, new Block(blockX, blockY, &blocks->types[playerInput.currentBlock],
+                                                                  playerInput.currentRotation));
+                        }
+                    }
+                    if (input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT)) {
+                        blocks->erase(blockX, blockY);
+                    }
+                }
             }
         }
-        f = ImGui::IsMouseDragging(ImGuiMouseButton_Left);
 
-        font->text(camera, 300.f, 100.f, "ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789");
+        pipeline->beginPass(camera, bloom, blocks->atlas, blocks->VAO, []() { blocks->draw(camera); });
+
+        static glm::vec2 cameraStart, cameraDelta, size, start, delta;
+        if (input->isStartDragging()) {
+            cameraStart = camera->position;
+        }
+        if (input->isDragging()) {
+            start = input->getDraggingStartPosition();
+            start.x = map(start.x, (float) window->width, camera->left, camera->right);
+            start.y = map(start.y, (float) window->height, camera->bottom, camera->top);
+            delta = input->getCursorPosition() - input->getDraggingStartPosition();
+            delta.x *= (camera->right - camera->left) / (float) window->width;
+            delta.y *= (camera->top - camera->bottom) / (float) window->height;
+            cameraDelta = glm::vec2(camera->position.x, camera->position.y) - cameraStart;
+
+            size = glm::vec2(delta.x + cameraDelta.x, delta.y - cameraDelta.y);
+
+            int s_x = (int) std::min(start.x, start.x + size.x);
+            int s_y = (int) std::max(start.y, start.y + size.y);
+
+            pipeline->drawSelection(camera, glm::vec2(s_x, window->height - s_y) - cameraDelta, glm::abs(size));
+        }
+        if (input->isStopDragging()) {
+            int s_LB = (int) (std::min(start.x, start.x + size.x) + camera->position.x - cameraDelta.x);
+            int s_BB = (int) ((float) window->height - std::max(start.y, start.y + size.y) +
+                              camera->position.y -
+                              cameraDelta.y);
+
+            int s_RB = s_LB + (int) abs(size.x);
+            int s_TB = s_BB + (int) abs(size.y);
+            selectedBlocks = 0;
+            for (auto &it: blocks->blocks) {
+                int px = Block_X(it.first) << 5;
+                int py = Block_Y(it.first) << 5;
+                it.second->selected = px > s_LB && px < s_RB && py > s_BB && py < s_TB;
+                selectedBlocks += it.second->selected;
+            }
+
+            ImGuiToast toast(ImGuiToastType_Info, 2000);
+            toast.set_title("Selected %d blocks", selectedBlocks);
+            ImGui::InsertNotification(toast);
+        }
 
         Engine::HUD::begin();
-        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Once);
-        ImGui::SetNextWindowBgAlpha(0.4f);
+        ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Once);
+        ImGui::SetNextWindowBgAlpha(0.f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.f);
         if (ImGui::Begin("##Debug", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
                                              ImGuiWindowFlags_NoFocusOnAppearing |
                                              ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove)) {
-            ImGui::Text("FPS: %.1f", io->Framerate);
-            ImGui::Text("Tick: %.2fms", blocks->tickTime * 1000.);
-            ImGui::Text("Blocks: %zu", blocks->blocks.size());
+            ImGui::Text("FPS: %.0f", io->Framerate);
+            ImGui::Text("Tick: %.1fms", blocks->tickTime * 1000.);
         }
         ImGui::End();
-        ImGui::SetNextWindowPos(ImVec2(10, 90), ImGuiCond_Once);
+        ImGui::PopStyleVar();
+        ImGui::SetNextWindowPos(ImVec2(5, 50), ImGuiCond_Once);
         if (ImGui::Begin("Simulation", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_MenuBar)) {
             if (ImGui::BeginMenuBar()) {
                 if (ImGui::BeginMenu("File")) {
-                    if (ImGui::MenuItem("\xef\x85\x9b  New"))
+                    if (ImGui::MenuItem("\xef\x85\x9b  New", "Ctrl + N"))
                         blocks->blocks.clear();
                     if (ImGui::MenuItem("\xef\x81\xbc Open", "Ctrl + O"))
                         loadDialog.Open();
                     if (ImGui::MenuItem("\xef\x83\x87  Save", "Ctrl + S"))
                         saveMenu = true;
-                    if(ImGui::MenuItem("Save settings")){
-                        set_setting_values();
-                        settings->save();
-                    }
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Edit")) {
@@ -354,7 +305,7 @@ int main() {
                         cut();
                     if (ImGui::MenuItem("\xef\xa1\x8c Select all", "Ctrl + A"))
                         select_all();
-                    if (ImGui::MenuItem("\xef\x87\xb8 Delete", "DEL"))
+                    if (ImGui::MenuItem("\xef\x87\xb8 Delete", "DELETE"))
                         blocks->delete_selected();
                     ImGui::EndMenu();
                 }
@@ -376,8 +327,6 @@ int main() {
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Help")) {
-                    if (ImGui::MenuItem("Controls guide"))
-                        controlsMenu = true;
                     if (ImGui::MenuItem("Itch.io"))
                         ShellExecute(nullptr, nullptr, "https://kewldan.itch.io/logical-system", nullptr, nullptr,
                                      SW_SHOW);
@@ -397,8 +346,6 @@ int main() {
                 ImGui::Text("Simulation ticks per second");
                 ImGui::EndTooltip();
             }
-            ImGui::ColorEdit3("Default color", reinterpret_cast<float *>(&pipeline->blockDefaultColor));
-            ImGui::ColorEdit3("Glow color", reinterpret_cast<float *>(&pipeline->blockGlowColor));
             ImGui::Combo("Block", &playerInput.currentBlock,
                          "Wire straight\0Wire angled right\0Wire angled left\0Wire T\0Wire cross\0Wire 2\0Wire 3\0NOT\0AND\0NAND\0XOR\0NXOR\0Switch\0Clock\0Lamp\0");
             if (ImGui::IsItemHovered()) {
@@ -464,88 +411,7 @@ int main() {
 
             ImGui::End();
         }
-        if (controlsMenu) {
-            ImGui::SetNextWindowPos(ImVec2(io->DisplaySize.x * 0.5f, io->DisplaySize.y * 0.5f), ImGuiCond_Always,
-                                    ImVec2(0.5f, 0.5f));
-            if (ImGui::Begin("Controls", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-                if (ImGui::CollapsingHeader("\xef\xa3\x8c  Mouse", ImGuiTreeNodeFlags_DefaultOpen)) {
-                    ImGui::Text("LMB - place blocks");
-                    if (ImGui::IsItemHovered()) {
-                        ImGui::BeginTooltip();
-                        ImGui::Text("+ SHIFT - Drag - Multiple selection\n- Click on block - for rotate clockwise");
-                        ImGui::EndTooltip();
-                    }
-                    ImGui::Text("RMB - remove blocks");
-                }
-                ImGui::NewLine();
-                if (ImGui::CollapsingHeader("\xef\x84\x9c Keyboard", ImGuiTreeNodeFlags_DefaultOpen)) {
-                    ImGui::Text("WASD - Move camera");
-                    ImGui::Text("R - Rotate");
-                    if (ImGui::IsItemHovered()) {
-                        ImGui::BeginTooltip();
-                        ImGui::Text("+ SHIFT - Anti-clockwise");
-                        ImGui::EndTooltip();
-                    }
-                    ImGui::Text("0 - 9 - Block type");
-                    if (ImGui::IsItemHovered()) {
-                        ImGui::BeginTooltip();
-                        ImGui::Text("+ SHIFT - Another set of blocks");
-                        ImGui::EndTooltip();
-                    }
-                    ImGui::Text("+ Hotkeys from menu");
-                }
-                ImGui::NewLine();
-                if (ImGui::Button("Close", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-                    controlsMenu = false;
-                }
-            }
-            ImGui::End();
-        }
         Engine::HUD::end();
-
-        if(!io->WantCaptureKeyboard){
-            float cameraSpeed = 500.f * camera->getZoom() * camera->getZoom() * io->DeltaTime;
-            if (input->isKeyPressed(GLFW_KEY_A)) {
-                camera->position.x -= cameraSpeed;
-            } else if (input->isKeyPressed(GLFW_KEY_D)) {
-                camera->position.x += cameraSpeed;
-            }
-
-            if (input->isKeyPressed(GLFW_KEY_W)) {
-                camera->position.y += cameraSpeed;
-            } else if (input->isKeyPressed(GLFW_KEY_S)) {
-                camera->position.y -= cameraSpeed;
-            }
-            if (input->isKeyPressed(GLFW_KEY_A) || input->isKeyPressed(GLFW_KEY_D) ||
-                input->isKeyPressed(GLFW_KEY_W) || input->isKeyPressed(GLFW_KEY_S)) {
-                camera->updateView();
-            }
-        }
-        if (!io->WantCaptureMouse) {
-            if (!input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
-                Block *block = blocks->get(blockX, blockY);
-                if (block) {
-                    if (input->isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_LEFT)) {
-
-                        if (block->type->id == blocks->types[12].id) {
-                            block->active ^= 1;
-                        } else {
-                            blocks->rotate(blockX, blockY, rotateBlock(block->rotation,
-                                                                       input->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1.f
-                                                                                                                : 1.f));
-                        }
-                    }
-                } else if (input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
-                    if (!blocks->has(blockX, blockY)) {
-                        blocks->set(blockX, blockY, new Block(blockX, blockY, &blocks->types[playerInput.currentBlock],
-                                                              playerInput.currentRotation));
-                    }
-                }
-                if (input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT)) {
-                    blocks->erase(blockX, blockY);
-                }
-            }
-        }
     } while (window->update());
     blocks->thread.join();
     return 0;

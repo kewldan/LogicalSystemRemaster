@@ -197,13 +197,6 @@ void BlockManager::setActive(int x, int y, BlockRotation rotation, int l) {
     }
 }
 
-void BlockManager::draw(int count) const {
-    ASSERT("Count must be > 0", count > 0);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * count, info);
-    glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, count);
-}
-
 bool BlockManager::save(Engine::Camera *camera, const char *path) {
     if (Engine::File::exists(path)) return false;
     ASSERT("Path is nullptr", path != nullptr);
@@ -249,7 +242,10 @@ void BlockManager::thread_tick() {
     static double lastUpdate = 0;
     static double elapsed = 0;
     while (!glfwWindowShouldClose(window->getId())) {
-        if (glfwGetTime() > lastUpdate + (1. / TPS) && simulate) {
+        if(blocks.empty()){
+            tickTime = 0.;
+        }
+        else if (glfwGetTime() > lastUpdate + (1. / TPS) && simulate) {
             elapsed = glfwGetTime();
             update();
             tickTime = glfwGetTime() - elapsed;
@@ -358,5 +354,34 @@ void BlockManager::load_from_memory(Engine::Camera *camera, const char *data, in
             auto *block = new Block(data + i * 11L + 16, types, &pos);
             blocks[pos] = block;
         }
+    }
+}
+
+void BlockManager::draw(Engine::Camera* camera) {
+    int j = 0, x, y;
+    int LB = (int) camera->position.x + (int) camera->left - 16;
+    int RB = (int) camera->position.x + (int) camera->right + 16;
+    int BB = (int) camera->position.y + (int) camera->bottom - 16;
+    int TB = (int) camera->position.y + (int) camera->top + 16;
+    for (auto &it: blocks) {
+        x = Block_X(it.first) << 5;
+        y = Block_Y(it.first) << 5;
+        if (x > LB && x < RB && y > BB && y < TB) {
+            info[j] = BlockInfo(it.second->type->id, it.second->active,
+                                        it.second->selected,
+                                        it.second->getMVP());
+            j++;
+        }
+        if (j == BLOCK_BATCHING) {
+            glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * j, info);
+            glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, j);
+            j = 0;
+        }
+    }
+    if (j > 0) {
+        glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * j, info);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, j);
     }
 }
