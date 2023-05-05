@@ -1,4 +1,4 @@
-IDI_ICON1               ICON                    "data/favicon.ico"
+IDI_ICON1 ICON "data/favicon.ico"
 
 FONT RCDATA "data/fonts/comfortaa.ttf"
 

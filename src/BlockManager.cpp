@@ -21,6 +21,7 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
         glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA,
                      32, 32, 15, 0,
                      GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
     } else {
         PLOGE << "Failed to load texture [blocks.png]";
         PLOGE << stbi_failure_reason();
@@ -197,7 +198,7 @@ void BlockManager::setActive(int x, int y, BlockRotation rotation, int l) {
     }
 }
 
-bool BlockManager::save(Engine::Camera *camera, const char *path) {
+bool BlockManager::save(Engine::Camera2D *camera, const char *path) {
     if (Engine::File::exists(path)) return false;
     ASSERT("Path is nullptr", path != nullptr);
     nlohmann::json saveFile;
@@ -228,7 +229,7 @@ inline bool ends_with(const char *value, const char *ending) {
     }
 }
 
-bool BlockManager::load(Engine::Camera *camera, const char *path) {
+bool BlockManager::load(Engine::Camera2D *camera, const char *path) {
     ASSERT("Path is nullptr", path != nullptr);
     int size = 0;
     const char *bin = Engine::File::readFile(path, &size);
@@ -318,7 +319,7 @@ void BlockManager::delete_selected() {
     }
 }
 
-void BlockManager::load_from_memory(Engine::Camera *camera, const char *data, int length, bool is_bson) {
+void BlockManager::load_from_memory(Engine::Camera2D *camera, const char *data, int length, bool is_bson) {
     ASSERT("Data is nullptr", data != nullptr);
     blocks.clear();
 
@@ -357,7 +358,7 @@ void BlockManager::load_from_memory(Engine::Camera *camera, const char *data, in
     }
 }
 
-void BlockManager::draw(Engine::Camera* camera) {
+void BlockManager::draw(Engine::Camera2D* camera) {
     int j = 0, x, y;
     int LB = (int) camera->position.x + (int) camera->left - 16;
     int RB = (int) camera->position.x + (int) camera->right + 16;

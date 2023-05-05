@@ -9,7 +9,7 @@
 #include "Base64.h"
 #include "Window.h"
 #include <json.hpp>
-#include "Camera.h"
+#include "Camera2D.h"
 
 typedef std::unordered_map<long long, Block *> Blocks;
 
@@ -67,13 +67,13 @@ public:
 
     void setActive(int x, int y, BlockRotation rotation, int l = 1);
 
-    void draw(Engine::Camera* camera);
+    void draw(Engine::Camera2D* camera);
 
-    bool save(Engine::Camera *camera, const char *path);
+    bool save(Engine::Camera2D *camera, const char *path);
 
-    bool load(Engine::Camera *camera, const char *path);
+    bool load(Engine::Camera2D *camera, const char *path);
 
-    void load_from_memory(Engine::Camera *camera, const char *data, int length, bool is_bson = false);
+    void load_from_memory(Engine::Camera2D *camera, const char *data, int length, bool is_bson = false);
 
     void select_all();
 

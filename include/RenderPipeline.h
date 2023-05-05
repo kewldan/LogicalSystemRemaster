@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Shader.h"
+#include "Camera2D.h"
 #include <functional>
 
 const float screenVertices[] = {
@@ -32,10 +33,10 @@ public:
 
     void resize(int nw, int nh);
 
-    void beginPass(Engine::Camera *camera, bool bloom, unsigned int atlas, unsigned int blockVao,
+    void beginPass(Engine::Camera2D *camera, bool bloom, unsigned int atlas, unsigned int blockVao,
                    const std::function<void()> &drawFunction);
 
-    void drawSelection(Engine::Camera *camera, glm::vec2 position, glm::vec2 size) const;
+    void drawSelection(Engine::Camera2D *camera, glm::vec2 position, glm::vec2 size) const;
 
     void drawScreenQuad() const;
 

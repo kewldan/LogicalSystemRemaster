@@ -15,7 +15,7 @@ RenderPipeline::RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blur
 
     glGenTextures(1, &gAlbedo);
     glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, gAlbedo);
-    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 16, GL_RGBA16F, w, h, GL_TRUE);
+    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA16F, w, h, GL_TRUE);
     glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -88,7 +88,7 @@ void RenderPipeline::resize(int nw, int nh) {
     h = nh;
 
     glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, gAlbedo);
-    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 16, GL_RGBA16F, w, h, GL_TRUE);
+    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA16F, w, h, GL_TRUE);
 
     glBindTexture(GL_TEXTURE_2D, screenTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGB, GL_FLOAT, nullptr);
@@ -101,22 +101,18 @@ void RenderPipeline::resize(int nw, int nh) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void RenderPipeline::beginPass(Engine::Camera *camera, bool bloom, unsigned int atlas, unsigned int blockVao,
+void RenderPipeline::beginPass(Engine::Camera2D *camera, bool bloom, unsigned int atlas, unsigned int blockVao,
                                const std::function<void()> &drawFunction) {
     glViewport(0, 0, w, h);
     glBindFramebuffer(GL_FRAMEBUFFER, FBO);
-    glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     backgroundShader->bind();
-    static const glm::mat4 backgroundMvp = glm::translate(glm::mat4(1), glm::vec3(0.f, 0.f, -0.3f));
-    backgroundShader->upload("mvp", backgroundMvp);
     backgroundShader->upload("horizontal", glm::vec2(camera->left, camera->right));
     backgroundShader->upload("vertical", glm::vec2(camera->bottom, camera->top));
-    backgroundShader->upload("screen", glm::vec2(camera->window->width, camera->window->height));
-    backgroundShader->upload("offset", glm::vec2(camera->position));
+    backgroundShader->upload("offset", glm::vec2(camera->position) + 16.f);
     drawScreenQuad();
     gShader->bind();
-    gShader->upload("proj", camera->getOrthographic());
+    gShader->upload("proj", camera->getProjection());
     gShader->upload("view", camera->getView());
     gShader->upload("tex", 0);
     static const glm::vec3 selectionColor = glm::vec3(1.3f, 1.2f, 1.8f);
@@ -146,7 +142,7 @@ void RenderPipeline::beginPass(Engine::Camera *camera, bool bloom, unsigned int 
         glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[0]);
         bool horizontal = true, first_iteration = true;
         glowShader->bind();
-        glowShader->upload("proj", camera->getOrthographic());
+        glowShader->upload("proj", camera->getProjection());
         glowShader->upload("view", camera->getView());
         glowShader->upload("tex", 0);
         glowShader->upload("ON", blockGlowColor);
@@ -159,7 +155,7 @@ void RenderPipeline::beginPass(Engine::Camera *camera, bool bloom, unsigned int 
         drawFunction();
         blurShader->bind();
         blurShader->upload("image", 0);
-        for (int i = 0; i < 12; i++) {
+        for (int i = 0; i < 6; i++) {
             glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
             blurShader->upload("horizontal", horizontal);
             glBindTexture(
@@ -185,9 +181,9 @@ void RenderPipeline::beginPass(Engine::Camera *camera, bool bloom, unsigned int 
     }
 }
 
-void RenderPipeline::drawSelection(Engine::Camera *camera, glm::vec2 position, glm::vec2 size) const {
+void RenderPipeline::drawSelection(Engine::Camera2D *camera, glm::vec2 position, glm::vec2 size) const {
     selectionShader->bind();
-    selectionShader->upload("proj", camera->getOrthographic());
+    selectionShader->upload("proj", camera->getProjection());
     glm::mat4 mvp = glm::translate(glm::mat4(1), glm::vec3(position, -0.1f));
     selectionShader->upload("mvp", glm::scale(mvp, glm::vec3(size, 1.f)));
     selectionShader->upload("size", size);

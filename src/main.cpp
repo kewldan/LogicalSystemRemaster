@@ -7,7 +7,7 @@
 #include "Window.h"
 #include "HUD.h"
 #include "BlockManager.h"
-#include "Camera.h"
+#include "Camera2D.h"
 #include <cmath>
 #include "RenderPipeline.h"
 #include <format>
@@ -15,7 +15,7 @@
 
 Engine::Window *window;
 Engine::Input *input;
-Engine::Camera *camera;
+Engine::Camera2D *camera;
 
 BlockManager *blocks;
 RenderPipeline *pipeline;
@@ -100,7 +100,7 @@ int main() {
     PLOGI << "<< LOADING ASSETS >>";
 
     Engine::HUD::init(window);
-    camera = new Engine::Camera(window);
+    camera = new Engine::Camera2D(window);
     pipeline = new RenderPipeline(
             new Engine::Shader("block"),
             new Engine::Shader("blur"),
@@ -130,20 +130,22 @@ int main() {
 
     PLOGI << "<< STARING GAME LOOP >>";
     do {
+        if (window->isResized()) {
+            pipeline->resize(window->width, window->height);
+        }
+
         input->update();
         camera->update();
         window->reset();
 
-        if (window->isResized()) {
-            pipeline->resize(window->width, window->height);
-            camera->updateOrthographic();
-        }
         float cursorX = map(input->getCursorPosition().x, (float) window->width, camera->left, camera->right);
         float cursorY = map(input->getCursorPosition().y, (float) window->height, camera->bottom, camera->top);
         blockX = (int) floorf((cursorX + camera->position.x) / 32.f +
                               0.5f);
         blockY = (int) floorf((((float) window->height - cursorY) + camera->position.y) / 32.f +
                               0.5f);
+
+        pipeline->beginPass(camera, bloom, blocks->atlas, blocks->VAO, []() { blocks->draw(camera); });
 
         if (!io->WantCaptureKeyboard) {
             for (int i = 0; i <= 10; i++) {
@@ -199,10 +201,6 @@ int main() {
             if (input->isKeyPressed(GLFW_KEY_S)) {
                 camera->position.y -= cameraSpeed;
             }
-            if (input->isKeyPressed(GLFW_KEY_A) || input->isKeyPressed(GLFW_KEY_D) ||
-                input->isKeyPressed(GLFW_KEY_W) || input->isKeyPressed(GLFW_KEY_S)) {
-                camera->updateView();
-            }
             if (!io->WantCaptureMouse) {
                 if (!input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
                     Block *block = blocks->get(blockX, blockY);
@@ -228,8 +226,6 @@ int main() {
                 }
             }
         }
-
-        pipeline->beginPass(camera, bloom, blocks->atlas, blocks->VAO, []() { blocks->draw(camera); });
 
         static glm::vec2 cameraStart, cameraDelta, size, start, delta;
         if (input->isStartDragging()) {
@@ -333,7 +329,7 @@ int main() {
                     if (ImGui::MenuItem("Source code"))
                         ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                      nullptr, SW_SHOW);
-                    ImGui::MenuItem(std::format("Version: 2.0.1 ({})", __DATE__).c_str(), nullptr, nullptr, false);
+                    ImGui::MenuItem(std::format("Version: 2.0.2 ({})", __DATE__).c_str(), nullptr, nullptr, false);
                     ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
                     ImGui::EndMenu();
                 }
