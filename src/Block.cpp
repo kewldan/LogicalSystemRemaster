@@ -59,5 +59,5 @@ void Block::write(char *buffer, long long pos) {
 
 void Block::updateMvp(int x, int y) {
     mvp = glm::translate(glm::mat4(1), glm::vec3(x, y, -0.2f));
-    mvp *= rotationMatrices[rotation];
+    mvp *= blockTransformMatrices[rotation];
 }

@@ -67,21 +67,21 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
     glVertexAttribDivisor(6, 1);
 
     types = new BlockType[15];
-    types[0] = BlockType(0x0, [](int c) { return c > 0; });
-    types[1] = BlockType(0x1, [](int c) { return c > 0; });
-    types[2] = BlockType(0x2, [](int c) { return c > 0; });
-    types[3] = BlockType(0x3, [](int c) { return c > 0; });
-    types[4] = BlockType(0x4, [](int c) { return c > 0; });
-    types[5] = BlockType(0x5, [](int c) { return c > 0; });
-    types[6] = BlockType(0x6, [](int c) { return c > 0; });
-    types[7] = BlockType(0x7, [](int c) { return c > 0; });
-    types[8] = BlockType(0x8, [](int c) { return c >= 2; });
-    types[9] = BlockType(0x9, [](int c) { return c >= 2; });
-    types[10] = BlockType(0xA, [](int c) { return c % 2 == 1; });
-    types[11] = BlockType(0xB, [](int c) { return c % 2 == 1; });
-    types[12] = BlockType(0xC, [](int c) { return false; });
-    types[13] = BlockType(0xD, [](int c) { return c > 0; });
-    types[14] = BlockType(0xE, [](int c) { return c > 0; });
+    types[0] = BlockType(0x0, [](int c) { return c > 0; }); // Straight
+    types[1] = BlockType(0x1, [](int c) { return c > 0; }); // Right
+    types[2] = BlockType(0x2, [](int c) { return c > 0; }); // Left
+    types[3] = BlockType(0x3, [](int c) { return c > 0; }); // Sides
+    types[4] = BlockType(0x4, [](int c) { return c > 0; }); // Cross
+    types[5] = BlockType(0x5, [](int c) { return c > 0; }); // Long
+    types[6] = BlockType(0x6, [](int c) { return c > 0; }); // Very long
+    types[7] = BlockType(0x7, [](int c) { return c == 0; }); // Not
+    types[8] = BlockType(0x8, [](int c) { return c >= 2; }); // AND
+    types[9] = BlockType(0x9, [](int c) { return c < 2; }); // NAND
+    types[10] = BlockType(0xA, [](int c) { return c % 2; }); // XOR
+    types[11] = BlockType(0xB, [](int c) { return !(c % 2); }); // NXOR
+    types[12] = BlockType(0xC, [](int c) { return false; }); // Switch
+    types[13] = BlockType(0xD, [](int c) { return c == 0; }); // Timer
+    types[14] = BlockType(0xE, [](int c) { return c > 0; }); // Light
 
     thread = std::thread(&BlockManager::thread_tick, this);
 }
@@ -127,21 +127,17 @@ void BlockManager::update() {
         int y = Block_Y(it.first);
         BlockRotation r = block->rotation;
 
-        if (!block->active) { // Not family
-            if (block->type->id == types[7].id || block->type->id == types[9].id ||
-                block->type->id == types[11].id) { // Not, Nand, Nxor
-                if (!block->active) setActive(x, y, r);
-            }
-        }
-
         if (block->type->id == types[13].id) { // Timer
             block->active ^= 1;
             if (block->active) setActive(x, y, r);
         }
 
         if (block->active) {
-            if (block->type->id == types[0].id || block->type->id == types[8].id ||
-                block->type->id == types[10].id) { // Wire, And, Xor
+            if (
+                    block->type->id == types[0].id || block->type->id == types[7].id ||
+                    block->type->id == types[8].id || block->type->id == types[9].id ||
+                    block->type->id == types[10].id || block->type->id == types[11].id
+                    ) { // Wire, And, Xor
                 setActive(x, y, r);
             } else if (block->type->id == types[5].id) { // 2 wire
                 setActive(x, y, r, 2);
@@ -243,10 +239,9 @@ void BlockManager::thread_tick() {
     static double lastUpdate = 0;
     static double elapsed = 0;
     while (!glfwWindowShouldClose(window->getId())) {
-        if(blocks.empty()){
+        if (blocks.empty()) {
             tickTime = 0.;
-        }
-        else if (glfwGetTime() > lastUpdate + (1. / TPS) && simulate) {
+        } else if (glfwGetTime() > lastUpdate + (1. / TPS) && simulate) {
             elapsed = glfwGetTime();
             update();
             tickTime = glfwGetTime() - elapsed;
@@ -336,11 +331,10 @@ void BlockManager::load_from_memory(Engine::Camera2D *camera, const char *data, 
         camera->position.x = loadFile["camera"]["position"]["x"].get<float>();
         camera->position.y = loadFile["camera"]["position"]["y"].get<float>();
 
-        for (auto it : loadFile["blocks"])
-        {
+        for (auto it: loadFile["blocks"]) {
             int x = Block_X(it["pos"].get<long long>());
             int y = Block_Y(it["pos"].get<long long>());
-            auto* block = new Block(x, y, &types[it["type"].get<unsigned char>()], it["rotation"].get<BlockRotation>());
+            auto *block = new Block(x, y, &types[it["type"].get<unsigned char>()], it["rotation"].get<BlockRotation>());
             blocks[it["pos"].get<long long>()] = block;
         }
     } else {
@@ -358,7 +352,7 @@ void BlockManager::load_from_memory(Engine::Camera2D *camera, const char *data, 
     }
 }
 
-void BlockManager::draw(Engine::Camera2D* camera) {
+void BlockManager::draw(Engine::Camera2D *camera) {
     int j = 0, x, y;
     int LB = (int) camera->position.x + (int) camera->left - 16;
     int RB = (int) camera->position.x + (int) camera->right + 16;
@@ -369,8 +363,8 @@ void BlockManager::draw(Engine::Camera2D* camera) {
         y = Block_Y(it.first) << 5;
         if (x > LB && x < RB && y > BB && y < TB) {
             info[j] = BlockInfo(it.second->type->id, it.second->active,
-                                        it.second->selected,
-                                        it.second->getMVP());
+                                it.second->selected,
+                                it.second->getMVP());
             j++;
         }
         if (j == BLOCK_BATCHING) {

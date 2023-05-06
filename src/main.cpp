@@ -137,6 +137,10 @@ int main() {
         input->update();
         camera->update();
         window->reset();
+        if (vsync != _vsync) {
+            vsync = _vsync;
+            Engine::Window::setVsync(vsync);
+        }
 
         float cursorX = map(input->getCursorPosition().x, (float) window->width, camera->left, camera->right);
         float cursorY = map(input->getCursorPosition().y, (float) window->height, camera->bottom, camera->top);
@@ -313,12 +317,6 @@ int main() {
                 }
                 if (ImGui::BeginMenu("Graphics")) {
                     ImGui::MenuItem("VSync", nullptr, &_vsync);
-
-                    if (vsync != _vsync) {
-                        vsync = _vsync;
-                        Engine::Window::setVsync(vsync);
-                    }
-
                     ImGui::MenuItem("Bloom", nullptr, &bloom);
                     ImGui::EndMenu();
                 }

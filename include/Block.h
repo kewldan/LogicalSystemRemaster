@@ -8,14 +8,14 @@
 
 #define BlockRotation unsigned char
 
-const glm::mat4 scaleMatrix = glm::scale(glm::mat4(1), glm::vec3(32, 32, 1));
-const glm::mat4 rotationMatrices[] = {
-        glm::translate(glm::rotate(scaleMatrix, glm::radians(0.f), glm::vec3(0.f, 0.f, 1.f)), glm::vec3(-0.5, -0.5, 0)),
-        glm::translate(glm::rotate(scaleMatrix, glm::radians(-90.f), glm::vec3(0.f, 0.f, 1.f)),
+const glm::mat4 blockScaleMatrix = glm::scale(glm::mat4(1), glm::vec3(32, 32, 1));
+const glm::mat4 blockTransformMatrices[] = {
+        glm::translate(glm::rotate(blockScaleMatrix, glm::radians(0.f), glm::vec3(0.f, 0.f, 1.f)), glm::vec3(-0.5, -0.5, 0)),
+        glm::translate(glm::rotate(blockScaleMatrix, glm::radians(-90.f), glm::vec3(0.f, 0.f, 1.f)),
                        glm::vec3(-0.5, -0.5, 0)),
-        glm::translate(glm::rotate(scaleMatrix, glm::radians(180.f), glm::vec3(0.f, 0.f, 1.f)),
+        glm::translate(glm::rotate(blockScaleMatrix, glm::radians(180.f), glm::vec3(0.f, 0.f, 1.f)),
                        glm::vec3(-0.5, -0.5, 0)),
-        glm::translate(glm::rotate(scaleMatrix, glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f)), glm::vec3(-0.5, -0.5, 0))
+        glm::translate(glm::rotate(blockScaleMatrix, glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f)), glm::vec3(-0.5, -0.5, 0))
 };
 
 class BlockType {
