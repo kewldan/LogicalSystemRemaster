@@ -251,8 +251,8 @@ void BlockManager::thread_tick() {
     }
 }
 
-void BlockManager::copy(int selected, int blockX, int blockY) {
-    auto *b = (unsigned char *) malloc(selected * 11);
+void BlockManager::copy(int blockX, int blockY) {
+    auto *b = (unsigned char *) malloc(selectedBlocks * 11);
     int o = 0;
     for (auto &it: blocks) {
         if (it.second->selected) {
@@ -264,26 +264,34 @@ void BlockManager::copy(int selected, int blockX, int blockY) {
     }
 
     unsigned long length = 0;
-    auto *deflated = Engine::File::compress(b, selected * 11, &length);
+    auto *deflated = Engine::File::compress(b, selectedBlocks * 11, &length);
 
     const std::string exportString = Base64::base64_encode(deflated, length);
     glfwSetClipboardString(window->getId(), exportString.c_str());
+
+    ImGuiToast toast(ImGuiToastType_Success, 2000);
+    toast.set_title("%d blocks copied", selectedBlocks);
+    ImGui::InsertNotification(toast);
 }
 
-void BlockManager::cut(int selected, int blockX, int blockY) {
-    copy(selected, blockX, blockY);
+void BlockManager::cut(int blockX, int blockY) {
+    copy(blockX, blockY);
     delete_selected();
+    ImGuiToast toast(ImGuiToastType_Success, 2000);
+    toast.set_title("%d blocks cut", selectedBlocks);
+    ImGui::InsertNotification(toast);
 }
 
-int BlockManager::paste(int blockX, int blockY) {
+void BlockManager::paste(int blockX, int blockY) {
     const char *importString = glfwGetClipboardString(window->getId());
+    unsigned long count;
     std::vector<BYTE> bytes = Base64::base64_decode(std::string(importString));
     if (bytes.size() > 4) {
         unsigned long length = 0;
         auto *inflated = Engine::File::decompress(bytes.data(), bytes.size(), &length);
 
         if (length % 11 == 0) {
-            unsigned long count = length / 11UL;
+            count = length / 11UL;
             long long pos = 0;
             for (unsigned long i = 0; i < count; i++) {
                 auto *block = new Block(reinterpret_cast<char *>(inflated) + i * 11UL, types, &pos);
@@ -292,19 +300,32 @@ int BlockManager::paste(int blockX, int blockY) {
                 blocks[Block_TO_LONG(x, y)] = block;
                 block->updateMvp(x << 5, y << 5);
             }
-            return (int) count;
         } else {
-            return -1;
+            count = -1;
         }
     } else {
-        return -1;
+        count = -1;
     }
+
+    ImGuiToast toast(0);
+    if (count != -1) {
+        toast.set_type(ImGuiToastType_Success);
+        toast.set_title("%d blocks pasted", count);
+    } else {
+        toast.set_type(ImGuiToastType_Error);
+        toast.set_title("Failed to paste");
+    }
+    ImGui::InsertNotification(toast);
 }
 
 void BlockManager::select_all() {
     for (auto &it: blocks) {
         it.second->selected = true;
     }
+    selectedBlocks = length();
+    ImGuiToast toast(ImGuiToastType_Info, 2000);
+    toast.set_title("%d blocks selected", selectedBlocks);
+    ImGui::InsertNotification(toast);
 }
 
 void BlockManager::delete_selected() {
@@ -379,4 +400,18 @@ void BlockManager::draw(Engine::Camera2D *camera) {
         glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * j, info);
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, j);
     }
+}
+
+void BlockManager::set(int x, int y) {
+    auto* block = new Block(x, y, &types[playerInput.currentBlock], playerInput.currentRotation);
+    set(x, y, block);
+}
+
+void BlockManager::load_example(Engine::Camera2D* camera, const char *path) {
+    int size = 0;
+    auto data = (const char *) Engine::File::readResourceFile(path, &size);
+    load_from_memory(camera, data, size);
+    ImGuiToast toast(ImGuiToastType_Success, 2000);
+    toast.set_title("%s loaded successfully", path);
+    ImGui::InsertNotification(toast);
 }

@@ -1,7 +1,6 @@
 ﻿#define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define GLFW_INCLUDE_NONE
-#define STB_TRUETYPE_IMPLEMENTATION
 
 #include <plog/Log.h>
 #include "Window.h"
@@ -23,62 +22,12 @@ RenderPipeline *pipeline;
 ImGuiIO *io;
 ImFontConfig font_cfg;
 
-struct PlayerInput {
-    int currentBlock;
-    int currentRotation;
-} playerInput;
-
-bool saveMenu, bloom = true, vsync, _vsync = true;;
-char *saveFilename = nullptr;
-int blockX, blockY, selectedBlocks;
+bool saveMenu, vsync = true;
+char *saveFilename;
 ImGui::FileBrowser saveDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CreateNewDir), loadDialog;
 
-void load_example(const char *path) {
-    int size = 0;
-    auto data = (const char *) Engine::File::readResourceFile(path, &size);
-    blocks->load_from_memory(camera, data, size);
-    ImGuiToast toast(ImGuiToastType_Success, 2000);
-    toast.set_title("%s loaded successfully", path);
-    ImGui::InsertNotification(toast);
-}
-
-void mouse_wheel_callback(GLFWwindow *w, double xOffset, double yOffset) {
+void mouse_wheel_callback(GLFWwindow *, double, double yOffset) {
     camera->zoomIn((float) yOffset * -0.1f);
-}
-
-void cut() {
-    blocks->cut(selectedBlocks, blockX, blockY);
-    ImGuiToast toast(ImGuiToastType_Success, 2000);
-    toast.set_title("%d blocks cut", selectedBlocks);
-    ImGui::InsertNotification(toast);
-}
-
-void copy() {
-    blocks->copy(selectedBlocks, blockX, blockY);
-    ImGuiToast toast(ImGuiToastType_Success, 2000);
-    toast.set_title("%d blocks copied", selectedBlocks);
-    ImGui::InsertNotification(toast);
-}
-
-void paste() {
-    ImGuiToast toast(0);
-    int count = blocks->paste(blockX, blockY);
-    if (count != -1) {
-        toast.set_type(ImGuiToastType_Success);
-        toast.set_title("%d blocks pasted", count);
-    } else {
-        toast.set_type(ImGuiToastType_Error);
-        toast.set_title("Failed to paste");
-    }
-    ImGui::InsertNotification(toast);
-}
-
-void select_all() {
-    blocks->select_all();
-    selectedBlocks = blocks->length();
-    ImGuiToast toast(ImGuiToastType_Info, 2000);
-    toast.set_title("%d blocks selected", selectedBlocks);
-    ImGui::InsertNotification(toast);
 }
 
 float map(float value, float max1, float min2, float max2) {
@@ -137,32 +86,29 @@ int main() {
         input->update();
         camera->update();
         window->reset();
-        if (vsync != _vsync) {
-            vsync = _vsync;
-            Engine::Window::setVsync(vsync);
-        }
+        window->setVsync(vsync);
 
         float cursorX = map(input->getCursorPosition().x, (float) window->width, camera->left, camera->right);
         float cursorY = map(input->getCursorPosition().y, (float) window->height, camera->bottom, camera->top);
-        blockX = (int) floorf((cursorX + camera->position.x) / 32.f +
+        int blockX = (int) floorf((cursorX + camera->position.x) / 32.f +
                               0.5f);
-        blockY = (int) floorf((((float) window->height - cursorY) + camera->position.y) / 32.f +
+        int blockY = (int) floorf((((float) window->height - cursorY) + camera->position.y) / 32.f +
                               0.5f);
 
-        pipeline->beginPass(camera, bloom, blocks->atlas, blocks->VAO, []() { blocks->draw(camera); });
+        pipeline->beginPass(camera, blocks->atlas, blocks->VAO, []() { blocks->draw(camera); });
 
         if (!io->WantCaptureKeyboard) {
             for (int i = 0; i <= 10; i++) {
                 if (input->isKeyJustPressed(GLFW_KEY_0 + i)) {
-                    playerInput.currentBlock = !i ? 9 : i - 1;
-                    playerInput.currentBlock += 10 * input->isKeyPressed(GLFW_KEY_LEFT_SHIFT);
-                    playerInput.currentBlock = std::min(playerInput.currentBlock, 14);
+                    blocks->playerInput.currentBlock = !i ? 9 : i - 1;
+                    blocks->playerInput.currentBlock += 10 * input->isKeyPressed(GLFW_KEY_LEFT_SHIFT);
+                    blocks->playerInput.currentBlock = std::min(blocks->playerInput.currentBlock, 14);
                     break;
                 }
             }
             if (input->isKeyJustPressed(GLFW_KEY_R)) {
-                playerInput.currentRotation = rotateBlock(playerInput.currentRotation,
-                                                          input->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1 : 1);
+                blocks->playerInput.currentRotation = rotateBlock(blocks->playerInput.currentRotation,
+                                                                  input->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1 : 1);
             }
             if (input->isKeyJustPressed(GLFW_KEY_DELETE)) {
                 blocks->delete_selected();
@@ -175,36 +121,37 @@ int main() {
                     loadDialog.Open();
                 }
                 if (input->isKeyJustPressed(GLFW_KEY_X)) {
-                    cut();
+                    blocks->cut(blockX, blockY);
                 }
                 if (input->isKeyJustPressed(GLFW_KEY_C)) {
-                    copy();
+                    blocks->copy(blockX, blockY);
                 }
                 if (input->isKeyJustPressed(GLFW_KEY_V)) {
-                    paste();
+                    blocks->paste(blockX, blockY);
                 }
                 if (input->isKeyJustPressed(GLFW_KEY_A)) {
-                    select_all();
+                    blocks->select_all();
                 }
                 if (input->isKeyJustPressed(GLFW_KEY_N)) {
                     blocks->blocks.clear();
                 }
+            } else {
+                float cameraSpeed = 500.f * camera->getZoom() * camera->getZoom() * io->DeltaTime;
+                if (input->isKeyPressed(GLFW_KEY_A)) {
+                    camera->position.x -= cameraSpeed;
+                }
+                if (input->isKeyPressed(GLFW_KEY_D)) {
+                    camera->position.x += cameraSpeed;
+                }
+
+                if (input->isKeyPressed(GLFW_KEY_W)) {
+                    camera->position.y += cameraSpeed;
+                }
+                if (input->isKeyPressed(GLFW_KEY_S)) {
+                    camera->position.y -= cameraSpeed;
+                }
             }
 
-            float cameraSpeed = 500.f * camera->getZoom() * camera->getZoom() * io->DeltaTime;
-            if (input->isKeyPressed(GLFW_KEY_A)) {
-                camera->position.x -= cameraSpeed;
-            }
-            if (input->isKeyPressed(GLFW_KEY_D)) {
-                camera->position.x += cameraSpeed;
-            }
-
-            if (input->isKeyPressed(GLFW_KEY_W)) {
-                camera->position.y += cameraSpeed;
-            }
-            if (input->isKeyPressed(GLFW_KEY_S)) {
-                camera->position.y -= cameraSpeed;
-            }
             if (!io->WantCaptureMouse) {
                 if (!input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
                     Block *block = blocks->get(blockX, blockY);
@@ -214,14 +161,14 @@ int main() {
                                 block->active ^= 1;
                             } else {
                                 blocks->rotate(blockX, blockY, rotateBlock(block->rotation,
-                                                                           input->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1.f
-                                                                                                                    : 1.f));
+                                                                           input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)
+                                                                           ? -1.f
+                                                                           : 1.f));
                             }
                         }
                     } else if (input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
                         if (!blocks->has(blockX, blockY)) {
-                            blocks->set(blockX, blockY, new Block(blockX, blockY, &blocks->types[playerInput.currentBlock],
-                                                                  playerInput.currentRotation));
+                            blocks->set(blockX, blockY);
                         }
                     }
                     if (input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT)) {
@@ -259,16 +206,16 @@ int main() {
 
             int s_RB = s_LB + (int) abs(size.x);
             int s_TB = s_BB + (int) abs(size.y);
-            selectedBlocks = 0;
+            blocks->selectedBlocks = 0;
             for (auto &it: blocks->blocks) {
                 int px = Block_X(it.first) << 5;
                 int py = Block_Y(it.first) << 5;
                 it.second->selected = px > s_LB && px < s_RB && py > s_BB && py < s_TB;
-                selectedBlocks += it.second->selected;
+                blocks->selectedBlocks += it.second->selected;
             }
 
             ImGuiToast toast(ImGuiToastType_Info, 2000);
-            toast.set_title("Selected %d blocks", selectedBlocks);
+            toast.set_title("Selected %d blocks", blocks->selectedBlocks);
             ImGui::InsertNotification(toast);
         }
 
@@ -298,26 +245,29 @@ int main() {
                 }
                 if (ImGui::BeginMenu("Edit")) {
                     if (ImGui::MenuItem("\xef\x83\x85 Copy", "Ctrl + C"))
-                        copy();
+                        blocks->copy(blockX, blockY);
                     if (ImGui::MenuItem("\xef\x83\xaa Paste", "Ctrl + V"))
-                        paste();
+                        blocks->paste(blockX, blockY);
                     if (ImGui::MenuItem("\xef\x83\x84 Cut", "Ctrl + X"))
-                        cut();
+                        blocks->cut(blockX, blockY);
                     if (ImGui::MenuItem("\xef\xa1\x8c Select all", "Ctrl + A"))
-                        select_all();
+                        blocks->select_all();
                     if (ImGui::MenuItem("\xef\x87\xb8 Delete", "DELETE"))
                         blocks->delete_selected();
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Examples")) {
-                    if (ImGui::MenuItem("\xef\x81\xbc Blocks overview")) load_example("data/examples/Blocks.ls");
-                    if (ImGui::MenuItem("\xef\x81\xbc 1 Byte RAM")) load_example("data/examples/RAM1Byte.ls");
-                    if (ImGui::MenuItem("\xef\x81\xbc 4 Bit adder")) load_example("data/examples/Adder4Bit.ls");
+                    if (ImGui::MenuItem("\xef\x81\xbc Blocks overview"))
+                        blocks->load_example(camera, "data/examples/Blocks.ls");
+                    if (ImGui::MenuItem("\xef\x81\xbc 1 Byte RAM"))
+                        blocks->load_example(camera, "data/examples/RAM1Byte.ls");
+                    if (ImGui::MenuItem("\xef\x81\xbc 4 Bit adder"))
+                        blocks->load_example(camera, "data/examples/Adder4Bit.ls");
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Graphics")) {
-                    ImGui::MenuItem("VSync", nullptr, &_vsync);
-                    ImGui::MenuItem("Bloom", nullptr, &bloom);
+                    ImGui::MenuItem("VSync", nullptr, &vsync);
+                    ImGui::MenuItem("Bloom", nullptr, &pipeline->bloom);
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Help")) {
@@ -327,7 +277,9 @@ int main() {
                     if (ImGui::MenuItem("Source code"))
                         ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                      nullptr, SW_SHOW);
-                    ImGui::MenuItem(std::format("Version: 2.0.2 ({})", __DATE__).c_str(), nullptr, nullptr, false);
+                    static const std::string versionString = std::format("Version: 2.0.3 ({})", __DATE__);
+                    static const char *version = versionString.c_str();
+                    ImGui::MenuItem(version, nullptr, nullptr, false);
                     ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
                     ImGui::EndMenu();
                 }
@@ -340,14 +292,14 @@ int main() {
                 ImGui::Text("Simulation ticks per second");
                 ImGui::EndTooltip();
             }
-            ImGui::Combo("Block", &playerInput.currentBlock,
+            ImGui::Combo("Block", &blocks->playerInput.currentBlock,
                          "Wire straight\0Wire angled right\0Wire angled left\0Wire T\0Wire cross\0Wire 2\0Wire 3\0NOT\0AND\0NAND\0XOR\0NXOR\0Switch\0Clock\0Lamp\0");
             if (ImGui::IsItemHovered()) {
                 ImGui::BeginTooltip();
                 ImGui::Text("Use 0-9 for 0-9 elements\nand SHIFT for 10-14 elements");
                 ImGui::EndTooltip();
             }
-            ImGui::Combo("Rotation", &playerInput.currentRotation, "Up\0Right\0Down\0Left");
+            ImGui::Combo("Rotation", &blocks->playerInput.currentRotation, "Up\0Right\0Down\0Left\0");
             if (ImGui::IsItemHovered()) {
                 ImGui::BeginTooltip();
                 ImGui::Text("Use R for rotate clockwise\nand SHIFT for anti-clockwise");
@@ -358,8 +310,7 @@ int main() {
 
         loadDialog.Display();
         if (loadDialog.HasSelected()) {
-            auto p = loadDialog.GetSelected();
-            std::string s = p.string();
+            std::string s = loadDialog.GetSelected().string();
             const char *path = s.c_str();
             ImGuiToast toast(0);
             if (blocks->load(camera, path)) {
@@ -375,8 +326,7 @@ int main() {
 
         saveDialog.Display();
         if (saveDialog.HasSelected()) {
-            auto p = saveDialog.GetSelected();
-            std::string s = p.string();
+            std::string s = saveDialog.GetSelected().string();
             const char *path = s.c_str();
             static char *buf = new char[128];
             strcpy_s(buf, 128, path);

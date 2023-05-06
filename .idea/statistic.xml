@@ -8,6 +8,7 @@
         <option value="$PROJECT_DIR$/build" />
         <option value="$PROJECT_DIR$/.idea" />
         <option value="$PROJECT_DIR$/schemes" />
+        <option value="$PROJECT_DIR$/../../libraries" />
       </list>
     </option>
   </component>

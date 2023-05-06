@@ -9,6 +9,7 @@
 #include "Base64.h"
 #include "Window.h"
 #include <json.hpp>
+#include "HUD.h"
 #include "Camera2D.h"
 
 typedef std::unordered_map<long long, Block *> Blocks;
@@ -34,22 +35,28 @@ public:
 
 class BlockManager {
 private:
+    BlockInfo *info;
     void thread_tick();
 public:
     unsigned int atlas{}, VAO{}, *VBO;
     Blocks blocks;
-    BlockInfo *info;
     BlockType *types;
     bool simulate;
-    int TPS;
+    int TPS, selectedBlocks{};
     double tickTime{};
     std::thread thread;
     std::mutex mutex;
     Engine::Window *window;
+    struct PlayerInput {
+        int currentBlock;
+        int currentRotation;
+    } playerInput{};
 
     BlockManager(Engine::Window *window, const float vertices[], int count);
 
     void set(int x, int y, Block *block);
+
+    void set(int x, int y);
 
     Block *get(int x, int y);
 
@@ -75,13 +82,15 @@ public:
 
     void load_from_memory(Engine::Camera2D *camera, const char *data, int length, bool is_bson = false);
 
+    void load_example(Engine::Camera2D* camera, const char *path);
+
     void select_all();
 
     void delete_selected();
 
-    void copy(int selected, int blockX, int blockY);
+    void copy(int blockX, int blockY);
 
-    int paste(int blockX, int blockY);
+    void paste(int blockX, int blockY);
 
-    void cut(int selected, int blockX, int blockY);
+    void cut(int blockX, int blockY);
 };

@@ -101,7 +101,7 @@ void RenderPipeline::resize(int nw, int nh) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void RenderPipeline::beginPass(Engine::Camera2D *camera, bool bloom, unsigned int atlas, unsigned int blockVao,
+void RenderPipeline::beginPass(Engine::Camera2D *camera, unsigned int atlas, unsigned int blockVao,
                                const std::function<void()> &drawFunction) {
     glViewport(0, 0, w, h);
     glBindFramebuffer(GL_FRAMEBUFFER, FBO);
