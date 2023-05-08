@@ -1,5 +1,6 @@
 #version 330
 out vec4 gAlbedo;
+out vec4 gAlbedoHDR;
 
 in vec2 pixel;
 
@@ -12,4 +13,5 @@ void main()
     } else {
         gAlbedo = vec4(0.17, 0.18, 0.2, 1);
     }
+    gAlbedoHDR = vec4(0, 0, 0, 1);
 }

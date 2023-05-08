@@ -14,31 +14,31 @@ RenderPipeline::RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blur
     glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 
     glGenTextures(1, &gAlbedo);
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, gAlbedo);
-    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA16F, w, h, GL_TRUE);
-    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, gAlbedo, 0);
+    glBindTexture(GL_TEXTURE_2D, gAlbedo);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gAlbedo, 0);
+
+    glGenTextures(1, &gAlbedoHDR);
+    glBindTexture(GL_TEXTURE_2D, gAlbedoHDR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gAlbedoHDR, 0);
+
+
+    unsigned int attachments[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+    glDrawBuffers(2, attachments);
+
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         PLOGE << "Framebuffer not complete!";
     }
 
-    glGenFramebuffers(1, &intermediateFBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, intermediateFBO);
-
-    glGenTextures(1, &screenTexture);
-    glBindTexture(GL_TEXTURE_2D, screenTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGB, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, screenTexture,
-                           0);    // we only need a color buffer
-
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-        PLOGE << "Intermediate framebuffer is not complete!";
-    }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     blockDefaultColor = glm::vec3(0.92, 0.31, 0.2);
@@ -87,11 +87,11 @@ void RenderPipeline::resize(int nw, int nh) {
     w = nw;
     h = nh;
 
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, gAlbedo);
-    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA16F, w, h, GL_TRUE);
+    glBindTexture(GL_TEXTURE_2D, gAlbedo);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
 
-    glBindTexture(GL_TEXTURE_2D, screenTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGB, GL_FLOAT, nullptr);
+    glBindTexture(GL_TEXTURE_2D, gAlbedoHDR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
 
     for (unsigned int i: pingpongBuffer) {
         glBindTexture(GL_TEXTURE_2D, i);
@@ -106,11 +106,13 @@ void RenderPipeline::beginPass(Engine::Camera2D *camera, unsigned int atlas, uns
     glViewport(0, 0, w, h);
     glBindFramebuffer(GL_FRAMEBUFFER, FBO);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     backgroundShader->bind();
     backgroundShader->upload("horizontal", glm::vec2(camera->left, camera->right));
     backgroundShader->upload("vertical", glm::vec2(camera->bottom, camera->top));
     backgroundShader->upload("offset", glm::vec2(camera->position) + 16.f);
     drawScreenQuad();
+
     gShader->bind();
     gShader->upload("proj", camera->getProjection());
     gShader->upload("view", camera->getView());
@@ -120,46 +122,20 @@ void RenderPipeline::beginPass(Engine::Camera2D *camera, unsigned int atlas, uns
     gShader->upload("selectionColor", color);
     gShader->upload("ON", blockGlowColor);
     gShader->upload("OFF", blockDefaultColor);
-
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D_ARRAY, atlas);
-
     glBindVertexArray(blockVao);
     drawFunction();
 
-    glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[0]);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    if (!bloom) {
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, FBO);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-    } else {
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, FBO);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, intermediateFBO);
-        glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-        glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[0]);
-        bool horizontal = true, first_iteration = true;
-        glowShader->bind();
-        glowShader->upload("proj", camera->getProjection());
-        glowShader->upload("view", camera->getView());
-        glowShader->upload("tex", 0);
-        glowShader->upload("ON", blockGlowColor);
-        glowShader->upload("OFF", blockDefaultColor);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D_ARRAY, atlas);
-
-        glBindVertexArray(blockVao);
-        drawFunction();
+    bool horizontal = true, first_iteration = true;
+    if (bloom) {
         blurShader->bind();
         blurShader->upload("image", 0);
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 12; i++) {
             glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
             blurShader->upload("horizontal", horizontal);
             glBindTexture(
-                    GL_TEXTURE_2D, pingpongBuffer[!horizontal]
+                    GL_TEXTURE_2D, first_iteration ? gAlbedoHDR : pingpongBuffer[!horizontal]
             );
             drawScreenQuad();
 
@@ -167,18 +143,17 @@ void RenderPipeline::beginPass(Engine::Camera2D *camera, unsigned int atlas, uns
             if (first_iteration)
                 first_iteration = false;
         }
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-        finalShader->bind();
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, screenTexture);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, pingpongBuffer[!horizontal]);
-        finalShader->upload("scene", 0);
-        finalShader->upload("bloomBlur", 1);
-        drawScreenQuad();
     }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    finalShader->bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, gAlbedo);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, pingpongBuffer[!horizontal]);
+    finalShader->upload("scene", 0);
+    finalShader->upload("bloomBlur", 1);
+    drawScreenQuad();
 }
 
 void RenderPipeline::drawSelection(Engine::Camera2D *camera, glm::vec2 position, glm::vec2 size) const {

@@ -24,11 +24,11 @@ private:
     unsigned int pingpongFBO[2]{};
     unsigned int pingpongBuffer[2]{};
     Engine::Shader *gShader, *blurShader, *finalShader, *backgroundShader, *selectionShader, *glowShader;
-    unsigned int FBO{}, gAlbedo{}, screenVAO{}, screenVBO{}, quadVAO{}, quadVBO{}, intermediateFBO{}, screenTexture{};
+    unsigned int FBO{}, gAlbedo{}, gAlbedoHDR{}, screenVAO{}, screenVBO{}, quadVAO{}, quadVBO{};
 public:
     int w, h;
     glm::vec3 blockDefaultColor{}, blockGlowColor{};
-    bool bloom;
+    bool bloom = true;
 
     RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blurShader, Engine::Shader *finalShader,
                    Engine::Shader *backgroundShader, Engine::Shader *selectionShader, Engine::Shader *glowShader, int width, int height);

@@ -1,5 +1,6 @@
 #version 330
 out vec4 gAlbedo;
+out vec4 gAlbedoHDR;
 
 in Vertex {
     vec3 texCoord;
@@ -18,4 +19,5 @@ void main()
     gAlbedo.rgb = mix(mix(OFF, ON, vertex.state), gAlbedo.rgb, gAlbedo.a);
     gAlbedo.a = 1;
     gAlbedo *= mix(vec4(1), vec4(selectionColor, 1), vertex.selection);
+    gAlbedoHDR = vec4(0, 0, 0, 1);
 }
