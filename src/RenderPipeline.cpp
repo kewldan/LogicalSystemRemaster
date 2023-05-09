@@ -2,12 +2,11 @@
 
 RenderPipeline::RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blurShader, Engine::Shader *finalShader,
                                Engine::Shader *backgroundShader, Engine::Shader *selectionShader,
-                               Engine::Shader *glowShader, int width, int height) : gShader(blockShader),
+                               int width, int height) : gShader(blockShader),
                                                                                     blurShader(blurShader),
                                                                                     finalShader(finalShader),
                                                                                     backgroundShader(backgroundShader),
-                                                                                    selectionShader(selectionShader),
-                                                                                    glowShader(glowShader) {
+                                                                                    selectionShader(selectionShader){
     w = width;
     h = height;
     glGenFramebuffers(1, &FBO);
@@ -15,7 +14,7 @@ RenderPipeline::RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blur
 
     glGenTextures(1, &gAlbedo);
     glBindTexture(GL_TEXTURE_2D, gAlbedo);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, w, h, 0, GL_RGB, GL_FLOAT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -24,7 +23,7 @@ RenderPipeline::RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blur
 
     glGenTextures(1, &gAlbedoHDR);
     glBindTexture(GL_TEXTURE_2D, gAlbedoHDR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, w, h, 0, GL_RGB, GL_FLOAT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -88,10 +87,10 @@ void RenderPipeline::resize(int nw, int nh) {
     h = nh;
 
     glBindTexture(GL_TEXTURE_2D, gAlbedo);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, w, h, 0, GL_RGB, GL_FLOAT, nullptr);
 
     glBindTexture(GL_TEXTURE_2D, gAlbedoHDR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, w, h, 0, GL_RGB, GL_FLOAT, nullptr);
 
     for (unsigned int i: pingpongBuffer) {
         glBindTexture(GL_TEXTURE_2D, i);
@@ -131,7 +130,7 @@ void RenderPipeline::beginPass(Engine::Camera2D *camera, unsigned int atlas, uns
     if (bloom) {
         blurShader->bind();
         blurShader->upload("image", 0);
-        for (int i = 0; i < 12; i++) {
+        for (int i = 0; i < 8; i++) {
             glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
             blurShader->upload("horizontal", horizontal);
             glBindTexture(
@@ -153,6 +152,7 @@ void RenderPipeline::beginPass(Engine::Camera2D *camera, unsigned int atlas, uns
     glBindTexture(GL_TEXTURE_2D, pingpongBuffer[!horizontal]);
     finalShader->upload("scene", 0);
     finalShader->upload("bloomBlur", 1);
+    finalShader->upload("bloom", bloom ? 1.0f : 0.0f);
     drawScreenQuad();
 }
 
@@ -162,7 +162,7 @@ void RenderPipeline::drawSelection(Engine::Camera2D *camera, glm::vec2 position,
     glm::mat4 mvp = glm::translate(glm::mat4(1), glm::vec3(position, -0.1f));
     selectionShader->upload("mvp", glm::scale(mvp, glm::vec3(size, 1.f)));
     selectionShader->upload("size", size);
-    selectionShader->upload("width", 2.f);
+    selectionShader->upload("width", (camera->right - camera->left) / 640.f);
     selectionShader->upload("color", glm::vec4(0.01, 0.6, 1, 0.1));
     selectionShader->upload("borderColor", glm::vec4(0.015, 0.6, 1, 1));
     drawRectQuad();

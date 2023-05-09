@@ -23,7 +23,7 @@ class RenderPipeline {
 private:
     unsigned int pingpongFBO[2]{};
     unsigned int pingpongBuffer[2]{};
-    Engine::Shader *gShader, *blurShader, *finalShader, *backgroundShader, *selectionShader, *glowShader;
+    Engine::Shader *gShader, *blurShader, *finalShader, *backgroundShader, *selectionShader;
     unsigned int FBO{}, gAlbedo{}, gAlbedoHDR{}, screenVAO{}, screenVBO{}, quadVAO{}, quadVBO{};
 public:
     int w, h;
@@ -31,7 +31,7 @@ public:
     bool bloom = true;
 
     RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blurShader, Engine::Shader *finalShader,
-                   Engine::Shader *backgroundShader, Engine::Shader *selectionShader, Engine::Shader *glowShader, int width, int height);
+                   Engine::Shader *backgroundShader, Engine::Shader *selectionShader, int width, int height);
 
     void resize(int nw, int nh);
 

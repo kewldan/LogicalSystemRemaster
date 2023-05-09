@@ -18,7 +18,7 @@ BlockType::BlockType(int id, const std::function<bool(int)> &func) {
 
 BlockType::BlockType() = default;
 
-glm::mat4 Block::getMVP() const {
+glm::mat4 &Block::getMVP() {
     return mvp;
 }
 
@@ -37,9 +37,9 @@ Block::Block(const char *buffer, BlockType *types, long long *pos) {
     memcpy(pos, buffer, 8);
     int t = 0;
     memcpy(&t, buffer + 8, 1);
-    if(t < 0 || t > 14){
+    if (t < 0 || t > 14) {
         t = 0;
-        PLOGW << "Block from buffer in " << *pos << " at " << (void*)buffer << " has invalid type, save corrupted";
+        PLOGW << "Block from buffer in " << *pos << " at " << (void *) buffer << " has invalid type, save corrupted";
     }
     type = &types[t];
     ASSERT("Type is nullptr", type != nullptr);

@@ -1,10 +1,10 @@
 ﻿cmake_minimum_required(VERSION 3.23)
 project("LogicalSystem")
 
-add_definitions(-DBLOCK_BATCHING=2048)
+add_definitions(-DBLOCK_BATCHING=4096)
 
 set(CMAKE_CXX_STANDARD 20)
-set(LIBRARIES_PATH "E:/Projects/libraries")
+set(LIBRARIES_PATH "C:/libraries")
 set(GLAD_PATH "${LIBRARIES_PATH}/glad/release")
 include(${LIBRARIES_PATH}/imgui/import.cmake)
 
@@ -38,7 +38,8 @@ file(GLOB ENGINE_SRCS
 set(LIBRARIES_SRCS
         ${IMGUI_SOURCES}
         "${GLAD_PATH}/src/glad.c"
-        "${LIBRARIES_PATH}/b64/Base64.cpp")
+        "${LIBRARIES_PATH}/b64/Base64.cpp"
+        )
 
 add_executable(${PROJECT_NAME} ${PROJECT_SRCS} ${ENGINE_SRCS} ${LIBRARIES_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/resources.rc")
 

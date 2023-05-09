@@ -12,8 +12,6 @@ data/shaders/final.vert RCDATA "data/shaders/final.vert"
 data/shaders/final.frag RCDATA "data/shaders/final.frag"
 data/shaders/quad.vert RCDATA "data/shaders/quad.vert"
 data/shaders/quad.frag RCDATA "data/shaders/quad.frag"
-data/shaders/glow.vert RCDATA "data/shaders/glow.vert"
-data/shaders/glow.frag RCDATA "data/shaders/glow.frag"
 
 data/examples/Adder4Bit.ls RCDATA "data/examples/Adder4Bit.ls"
 data/examples/Blocks.ls RCDATA "data/examples/Blocks.ls"

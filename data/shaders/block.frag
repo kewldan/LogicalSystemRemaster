@@ -17,7 +17,7 @@ void main()
 {
     gAlbedo = texture(tex, vertex.texCoord);
     gAlbedo.rgb = mix(mix(OFF, ON, vertex.state), gAlbedo.rgb, gAlbedo.a);
-    gAlbedo.a = 1;
-    gAlbedo *= mix(vec4(1), vec4(selectionColor, 1), vertex.selection);
-    gAlbedoHDR = vec4(0, 0, 0, 1);
+    gAlbedoHDR = vec4(mix(vec3(0), ON * 2, (1 - gAlbedo.a) * vertex.state), 1.0);
+    gAlbedo.a = 1.0;
+    gAlbedo.rgb *= mix(vec3(1.0), selectionColor, vertex.selection);
 }

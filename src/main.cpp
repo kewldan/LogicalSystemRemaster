@@ -2,33 +2,18 @@
 #define STBI_ONLY_PNG
 #define GLFW_INCLUDE_NONE
 
-#include <plog/Log.h>
 #include "Window.h"
 #include "HUD.h"
 #include "BlockManager.h"
 #include "Camera2D.h"
-#include <cmath>
 #include "RenderPipeline.h"
-#include <format>
 #include "Input.h"
-
-Engine::Window *window;
-Engine::Input *input;
-Engine::Camera2D *camera;
-
-BlockManager *blocks;
-RenderPipeline *pipeline;
 
 ImGuiIO *io;
 ImFontConfig font_cfg;
 
 bool saveMenu, vsync = true;
-char *saveFilename;
 ImGui::FileBrowser saveDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CreateNewDir), loadDialog;
-
-void mouse_wheel_callback(GLFWwindow *, double, double yOffset) {
-    camera->zoomIn((float) yOffset * -0.1f);
-}
 
 float map(float value, float max1, float min2, float max2) {
     return min2 + value * (max2 - min2) / max1;
@@ -36,34 +21,29 @@ float map(float value, float max1, float min2, float max2) {
 
 int main() {
     Engine::Window::init();
-    window = new Engine::Window(1280, 720, "Logical system");
+    auto window = new Engine::Window(1280, 720, "Logical system");
     window->setIcon("data/textures/favicon.png");
-    input = new Engine::Input(window->getId());
+    auto input = new Engine::Input(window->getId());
+    auto camera = new Engine::Camera2D(window);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     input->registerCallbacks();
 
-    glfwSetScrollCallback(window->getId(), mouse_wheel_callback);
-
-    PLOGI << "<< LOADING ASSETS >>";
-
     Engine::HUD::init(window);
-    camera = new Engine::Camera2D(window);
-    pipeline = new RenderPipeline(
+    auto pipeline = new RenderPipeline(
             new Engine::Shader("block"),
             new Engine::Shader("blur"),
             new Engine::Shader("final"),
             new Engine::Shader("background"),
             new Engine::Shader("quad"),
-            new Engine::Shader("glow"),
             window->width,
             window->height
     );
     io = &ImGui::GetIO();
 
-    saveFilename = new char[128];
-    memset(saveFilename, 0, 128);
+    auto saveFilename = new char[128];
+    saveFilename[0] = 0;
 
     font_cfg.FontDataOwnedByAtlas = false;
     int size = 0;
@@ -75,9 +55,7 @@ int main() {
     loadDialog.SetTitle("Load scheme");
     loadDialog.SetTypeFilters({".ls", ".bson"});
 
-    blocks = new BlockManager(window, quadVertices, (int) sizeof(quadVertices));
-
-    PLOGI << "<< STARING GAME LOOP >>";
+    auto blocks = new BlockManager(window, quadVertices, (int) sizeof(quadVertices));
     do {
         if (window->isResized()) {
             pipeline->resize(window->width, window->height);
@@ -91,11 +69,11 @@ int main() {
         float cursorX = map(input->getCursorPosition().x, (float) window->width, camera->left, camera->right);
         float cursorY = map(input->getCursorPosition().y, (float) window->height, camera->bottom, camera->top);
         int blockX = (int) floorf((cursorX + camera->position.x) / 32.f +
-                              0.5f);
+                                  0.5f);
         int blockY = (int) floorf((((float) window->height - cursorY) + camera->position.y) / 32.f +
-                              0.5f);
+                                  0.5f);
 
-        pipeline->beginPass(camera, blocks->atlas, blocks->VAO, []() { blocks->draw(camera); });
+        pipeline->beginPass(camera, blocks->atlas, blocks->VAO, [&blocks, &camera]() { blocks->draw(camera); });
 
         if (!io->WantCaptureKeyboard) {
             for (int i = 0; i <= 10; i++) {
@@ -153,6 +131,9 @@ int main() {
             }
 
             if (!io->WantCaptureMouse) {
+                if(input->getMouseWheelDelta().y != 0.f){
+                    camera->zoomIn(input->getMouseWheelDelta().y * -0.1f);
+                }
                 if (!input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
                     Block *block = blocks->get(blockX, blockY);
                     if (block) {
@@ -277,7 +258,7 @@ int main() {
                     if (ImGui::MenuItem("Source code"))
                         ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                      nullptr, SW_SHOW);
-                    static const std::string versionString = std::format("Version: 2.0.3 ({})", __DATE__);
+                    static const std::string versionString = std::format("Version: 2.0.4 ({})", __DATE__);
                     static const char *version = versionString.c_str();
                     ImGui::MenuItem(version, nullptr, nullptr, false);
                     ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
@@ -286,6 +267,12 @@ int main() {
                 ImGui::EndMenuBar();
             }
             ImGui::Checkbox("Play", &blocks->simulate);
+            if (!blocks->simulate) {
+                ImGui::SameLine();
+                if(ImGui::Button("Tick")){
+                    blocks->update();
+                }
+            }
             ImGui::SliderInt("TPS", &blocks->TPS, 2, 256);
             if (ImGui::IsItemHovered()) {
                 ImGui::BeginTooltip();

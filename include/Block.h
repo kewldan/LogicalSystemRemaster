@@ -10,12 +10,14 @@
 
 const glm::mat4 blockScaleMatrix = glm::scale(glm::mat4(1), glm::vec3(32, 32, 1));
 const glm::mat4 blockTransformMatrices[] = {
-        glm::translate(glm::rotate(blockScaleMatrix, glm::radians(0.f), glm::vec3(0.f, 0.f, 1.f)), glm::vec3(-0.5, -0.5, 0)),
+        glm::translate(glm::rotate(blockScaleMatrix, glm::radians(0.f), glm::vec3(0.f, 0.f, 1.f)),
+                       glm::vec3(-0.5, -0.5, 0)),
         glm::translate(glm::rotate(blockScaleMatrix, glm::radians(-90.f), glm::vec3(0.f, 0.f, 1.f)),
                        glm::vec3(-0.5, -0.5, 0)),
         glm::translate(glm::rotate(blockScaleMatrix, glm::radians(180.f), glm::vec3(0.f, 0.f, 1.f)),
                        glm::vec3(-0.5, -0.5, 0)),
-        glm::translate(glm::rotate(blockScaleMatrix, glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f)), glm::vec3(-0.5, -0.5, 0))
+        glm::translate(glm::rotate(blockScaleMatrix, glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f)),
+                       glm::vec3(-0.5, -0.5, 0))
 };
 
 class BlockType {
@@ -43,7 +45,7 @@ public:
     BlockType *type;
     glm::mat4 mvp{};
 
-    [[nodiscard]] glm::mat4 getMVP() const;
+    glm::mat4 &getMVP();
 
     Block(int x, int y, BlockType *type, BlockRotation rotation);
 
