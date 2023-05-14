@@ -1,7 +1,7 @@
 ﻿cmake_minimum_required(VERSION 3.23)
 project("LogicalSystem")
 
-add_definitions(-DBLOCK_BATCHING=4096)
+add_definitions(-DBLOCK_BATCHING=8192)
 
 set(CMAKE_CXX_STANDARD 20)
 set(LIBRARIES_PATH "E:/Projects/libraries")
@@ -41,6 +41,8 @@ set(LIBRARIES_SRCS
         "${GLAD_PATH}/src/glad.c"
         "${LIBRARIES_PATH}/b64/Base64.cpp"
         )
+
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mwindows")
 
 add_executable(${PROJECT_NAME} ${PROJECT_SRCS} ${ENGINE_SRCS} ${LIBRARIES_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/resources.rc")
 

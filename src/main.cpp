@@ -259,7 +259,7 @@ int main() {
                     if (ImGui::MenuItem("Source code"))
                         ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                      nullptr, SW_SHOW);
-                    static const std::string versionString = std::format("Version: 2.0.4 ({})", __DATE__);
+                    static const std::string versionString = std::format("Version: 2.0.5 ({})", __DATE__);
                     static const char *version = versionString.c_str();
                     ImGui::MenuItem(version, nullptr, nullptr, false);
                     ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
