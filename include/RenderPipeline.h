@@ -2,6 +2,7 @@
 
 #include "Shader.h"
 #include "Camera2D.h"
+#include <cmath>
 #include <functional>
 
 const float screenVertices[] = {

@@ -8,6 +8,7 @@
 #include "Camera2D.h"
 #include "RenderPipeline.h"
 #include "Input.h"
+#include <format>
 
 ImGuiIO *io;
 ImFontConfig font_cfg;
@@ -47,7 +48,7 @@ int main() {
 
     font_cfg.FontDataOwnedByAtlas = false;
     int size = 0;
-    void *fontData = Engine::File::readResourceFile("FONT", &size);
+    void *fontData = Engine::Filesystem::readResourceFile("data/fonts/comfortaa.ttf", &size);
     io->Fonts->AddFontFromMemoryTTF(fontData, size, 16.f, &font_cfg);
     ImGui::MergeIconsWithLatestFont(16.f, false);
 

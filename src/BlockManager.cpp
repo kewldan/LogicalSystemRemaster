@@ -195,7 +195,7 @@ void BlockManager::setActive(int x, int y, BlockRotation rotation, int l) {
 }
 
 bool BlockManager::save(Engine::Camera2D *camera, const char *path) {
-    if (Engine::File::exists(path)) return false;
+    if (Engine::Filesystem::exists(path)) return false;
     ASSERT("Path is nullptr", path != nullptr);
     nlohmann::json saveFile;
     saveFile["camera"]["position"]["x"] = camera->position.x;
@@ -213,7 +213,7 @@ bool BlockManager::save(Engine::Camera2D *camera, const char *path) {
         j++;
     }
     auto binary = nlohmann::json::to_bson(saveFile);
-    bool ok = Engine::File::writeFile(path, reinterpret_cast<const char *>(binary.data()), binary.size());
+    bool ok = Engine::Filesystem::writeFile(path, reinterpret_cast<const char *>(binary.data()), binary.size());
     return ok;
 }
 
@@ -228,7 +228,7 @@ inline bool ends_with(const char *value, const char *ending) {
 bool BlockManager::load(Engine::Camera2D *camera, const char *path) {
     ASSERT("Path is nullptr", path != nullptr);
     int size = 0;
-    const char *bin = Engine::File::readFile(path, &size);
+    const char *bin = Engine::Filesystem::readFile(path, &size);
     if (!bin) return false;
     load_from_memory(camera, bin, size, ends_with(path, ".bson"));
     delete[] bin;
@@ -264,7 +264,7 @@ void BlockManager::copy(int blockX, int blockY) {
     }
 
     unsigned long length = 0;
-    auto *deflated = Engine::File::compress(b, selectedBlocks * 11, &length);
+    auto *deflated = Engine::Filesystem::compress(b, selectedBlocks * 11, &length);
 
     const std::string exportString = Base64::base64_encode(deflated, length);
     glfwSetClipboardString(window->getId(), exportString.c_str());
@@ -288,7 +288,7 @@ void BlockManager::paste(int blockX, int blockY) {
     std::vector<BYTE> bytes = Base64::base64_decode(std::string(importString));
     if (bytes.size() > 4) {
         unsigned long length = 0;
-        auto *inflated = Engine::File::decompress(bytes.data(), bytes.size(), &length);
+        auto *inflated = Engine::Filesystem::decompress(bytes.data(), bytes.size(), &length);
 
         if (length % 11 == 0) {
             count = length / 11UL;
@@ -409,7 +409,7 @@ void BlockManager::set(int x, int y) {
 
 void BlockManager::load_example(Engine::Camera2D* camera, const char *path) {
     int size = 0;
-    auto data = (const char *) Engine::File::readResourceFile(path, &size);
+    auto data = (const char *) Engine::Filesystem::readResourceFile(path, &size);
     load_from_memory(camera, data, size);
     ImGuiToast toast(ImGuiToastType_Success, 2000);
     toast.set_title("%s loaded successfully", path);

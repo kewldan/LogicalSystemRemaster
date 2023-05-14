@@ -1,6 +1,5 @@
 IDI_ICON1 ICON "data/favicon.ico"
-
-FONT RCDATA "data/fonts/comfortaa.ttf"
+data/fonts/comfortaa.ttf RCDATA "data/fonts/comfortaa.ttf"
 
 data/shaders/background.vert RCDATA "data/shaders/background.vert"
 data/shaders/background.frag RCDATA "data/shaders/background.frag"

@@ -117,7 +117,7 @@ void RenderPipeline::beginPass(Engine::Camera2D *camera, unsigned int atlas, uns
     gShader->upload("view", camera->getView());
     gShader->upload("tex", 0);
     static const glm::vec3 selectionColor = glm::vec3(1.3f, 1.2f, 1.8f);
-    glm::vec3 color = selectionColor * ((std::sinf((float) glfwGetTime() * 6.f) + 1) * 0.2f + 0.8f);
+    glm::vec3 color = selectionColor * ((sinf((float) glfwGetTime() * 6.f) + 1) * 0.2f + 0.8f);
     gShader->upload("selectionColor", color);
     gShader->upload("ON", blockGlowColor);
     gShader->upload("OFF", blockDefaultColor);

@@ -4,7 +4,7 @@ project("LogicalSystem")
 add_definitions(-DBLOCK_BATCHING=4096)
 
 set(CMAKE_CXX_STANDARD 20)
-set(LIBRARIES_PATH "C:/libraries")
+set(LIBRARIES_PATH "E:/Projects/libraries")
 set(GLAD_PATH "${LIBRARIES_PATH}/glad/release")
 include(${LIBRARIES_PATH}/imgui/import.cmake)
 
@@ -23,7 +23,7 @@ include_directories(
         "${LIBRARIES_PATH}/engine/include"
 )
 
-link_directories("${LIBRARIES_PATH}/glfw/lib-vc2022")
+link_directories("${LIBRARIES_PATH}/glfw/lib-mingw-w64")
 link_directories("${LIBRARIES_PATH}/zlib/lib")
 link_directories("${LIBRARIES_PATH}/freetype/lib")
 
@@ -33,6 +33,7 @@ file(GLOB PROJECT_SRCS
 
 file(GLOB ENGINE_SRCS
         "${LIBRARIES_PATH}/engine/include/*.h" "${LIBRARIES_PATH}/engine/src/*.cpp"
+        "${LIBRARIES_PATH}/engine/include/io/*.h" "${LIBRARIES_PATH}/engine/src/io/*.cpp"
         )
 
 set(LIBRARIES_SRCS
@@ -42,11 +43,6 @@ set(LIBRARIES_SRCS
         )
 
 add_executable(${PROJECT_NAME} ${PROJECT_SRCS} ${ENGINE_SRCS} ${LIBRARIES_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/resources.rc")
-
-if (CMAKE_BUILD_TYPE STREQUAL "Release")
-    set_target_properties(${PROJECT_NAME} PROPERTIES
-            LINK_FLAGS "/ENTRY:mainCRTStartup /SUBSYSTEM:WINDOWS")
-endif ()
 
 target_link_libraries(${PROJECT_NAME}
         debug freetyped
