@@ -34,6 +34,9 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
     this->window = window;
     TPS = 8;
 
+    blocks.reserve(1024 * 1024);
+    blocks.max_load_factor(0.25f);
+
     glGenVertexArrays(1, &VAO);
     glGenBuffers(2, VBO);
     glBindVertexArray(VAO);
@@ -266,8 +269,11 @@ void BlockManager::copy(int blockX, int blockY) {
     unsigned long length = 0;
     auto *deflated = Engine::Filesystem::compress(b, selectedBlocks * 11, &length);
 
-    const std::string exportString = Base64::base64_encode(deflated, length);
-    glfwSetClipboardString(window->getId(), exportString.c_str());
+    size_t b64len = tb64enclen(length);
+    auto *buf = new unsigned char[b64len + 1];
+    tb64enc(deflated, length, buf);
+    buf[b64len] = 0;
+    glfwSetClipboardString(window->getId(), reinterpret_cast<const char *>(buf));
 
     ImGuiToast toast(ImGuiToastType_Success, 2000);
     toast.set_title("%d blocks copied", selectedBlocks);
@@ -285,10 +291,12 @@ void BlockManager::cut(int blockX, int blockY) {
 void BlockManager::paste(int blockX, int blockY) {
     const char *importString = glfwGetClipboardString(window->getId());
     unsigned long count;
-    std::vector<BYTE> bytes = Base64::base64_decode(std::string(importString));
-    if (bytes.size() > 4) {
+    auto *bytes = new unsigned char[tb64declen(reinterpret_cast<const unsigned char *>(importString),
+                                               strlen(importString))];
+    size_t written = tb64dec(reinterpret_cast<const unsigned char *>(importString), strlen(importString), bytes);
+    if (written > 4) {
         unsigned long length = 0;
-        auto *inflated = Engine::Filesystem::decompress(bytes.data(), bytes.size(), &length);
+        auto *inflated = Engine::Filesystem::decompress(bytes, written, &length);
 
         if (length % 11 == 0) {
             count = length / 11UL;
@@ -403,11 +411,11 @@ void BlockManager::draw(Engine::Camera2D *camera) {
 }
 
 void BlockManager::set(int x, int y) {
-    auto* block = new Block(x, y, &types[playerInput.currentBlock], playerInput.currentRotation);
+    auto *block = new Block(x, y, &types[playerInput.currentBlock], playerInput.currentRotation);
     set(x, y, block);
 }
 
-void BlockManager::load_example(Engine::Camera2D* camera, const char *path) {
+void BlockManager::load_example(Engine::Camera2D *camera, const char *path) {
     int size = 0;
     auto data = (const char *) Engine::Filesystem::readResourceFile(path, &size);
     load_from_memory(camera, data, size);

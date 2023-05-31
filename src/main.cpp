@@ -114,6 +114,13 @@ int main() {
                 if (input->isKeyJustPressed(GLFW_KEY_N)) {
                     blocks->blocks.clear();
                 }
+                if(input->isKeyJustPressed(GLFW_KEY_P) && input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)){
+                    for(int x = 0; x < 512; x++){
+                        for(int y = 0; y < 512; y++){
+                            blocks->set(x, y);
+                        }
+                    }
+                }
             } else {
                 float cameraSpeed = 500.f * camera->getZoom() * camera->getZoom() * io->DeltaTime;
                 if (input->isKeyPressed(GLFW_KEY_A)) {
