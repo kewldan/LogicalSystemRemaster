@@ -3,10 +3,10 @@
 RenderPipeline::RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blurShader, Engine::Shader *finalShader,
                                Engine::Shader *backgroundShader, Engine::Shader *selectionShader,
                                int width, int height) : gShader(blockShader),
-                                                                                    blurShader(blurShader),
-                                                                                    finalShader(finalShader),
-                                                                                    backgroundShader(backgroundShader),
-                                                                                    selectionShader(selectionShader){
+                                                        blurShader(blurShader),
+                                                        finalShader(finalShader),
+                                                        backgroundShader(backgroundShader),
+                                                        selectionShader(selectionShader) {
     w = width;
     h = height;
     glGenFramebuffers(1, &FBO);

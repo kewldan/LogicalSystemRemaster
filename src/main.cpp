@@ -13,7 +13,7 @@
 ImGuiIO *io;
 ImFontConfig font_cfg;
 
-bool saveMenu, vsync = true;
+bool saveMenu, vsync = true, displayFps = false, displayMenu = true;
 ImGui::FileBrowser saveDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CreateNewDir), loadDialog;
 
 float map(float value, float max1, float min2, float max2) {
@@ -32,6 +32,7 @@ int main() {
     input->registerCallbacks();
 
     Engine::HUD::init(window);
+    Engine::HUD::show_command_palette = false;
     auto pipeline = new RenderPipeline(
             new Engine::Shader("block"),
             new Engine::Shader("blur"),
@@ -57,6 +58,77 @@ int main() {
     loadDialog.SetTypeFilters({".ls", ".bson"});
 
     auto blocks = new BlockManager(window, quadVertices, (int) sizeof(quadVertices));
+
+    int blockX, blockY;
+
+    {
+        ImCmd::Command stress_test_cmd;
+        stress_test_cmd.Name = "Spawn blocks";
+        stress_test_cmd.InitialCallback = []() {
+            ImCmd::Prompt(std::vector<std::string>{
+                    "128x128",
+                    "256x256",
+                    "512x512",
+                    "1024x1024",
+            });
+        };
+        stress_test_cmd.SubsequentCallback = [&blocks](int s) {
+            int dim;
+            switch (s) {
+                case 0:
+                    dim = 128;
+                    break;
+                case 1:
+                    dim = 256;
+                    break;
+                case 2:
+                    dim = 512;
+                    break;
+                case 3:
+                    dim = 1024;
+                    break;
+                default:
+                    dim = 0;
+                    break;
+            }
+            for (int x = 0; x < dim; x++) {
+                for (int y = 0; y < dim; y++) {
+                    blocks->set(x, y);
+                }
+            }
+        };
+        ImCmd::AddCommand(std::move(stress_test_cmd));
+
+        ImCmd::Command fps_mon_command;
+        fps_mon_command.Name = "Display FPS";
+        fps_mon_command.InitialCallback = []() {
+            displayFps ^= 1;
+        };
+        ImCmd::AddCommand(std::move(fps_mon_command));
+
+        ImCmd::Command display_menu_command;
+        display_menu_command.Name = "Show menu";
+        display_menu_command.InitialCallback = []() {
+            displayMenu ^= 1;
+        };
+        ImCmd::AddCommand(std::move(display_menu_command));
+
+        ImCmd::Command block_info_command;
+        block_info_command.Name = "Show block info";
+        block_info_command.InitialCallback = [&blocks, &blockX, &blockY]() {
+            ImGuiToast toast(ImGuiToastType_Info, 7000);
+            Block *block = blocks->get(blockX, blockY);
+            if (block) {
+                toast.set_title("%p - %d blocks\nBlock %dx%d\nType - %d\nData - %.2X", &blocks->blocks,
+                                blocks->length(), blockX, blockY, block->type->id, 217);
+            } else {
+                toast.set_title("%p - %d blocks\nBlock %dx%d", &blocks->blocks, blocks->length(), blockX, blockY);
+            }
+            ImGui::InsertNotification(toast);
+        };
+        ImCmd::AddCommand(std::move(block_info_command));
+    }
+
     do {
         if (window->isResized()) {
             pipeline->resize(window->width, window->height);
@@ -69,10 +141,10 @@ int main() {
 
         float cursorX = map(input->getCursorPosition().x, (float) window->width, camera->left, camera->right);
         float cursorY = map(input->getCursorPosition().y, (float) window->height, camera->bottom, camera->top);
-        int blockX = (int) floorf((cursorX + camera->position.x) / 32.f +
-                                  0.5f);
-        int blockY = (int) floorf((((float) window->height - cursorY) + camera->position.y) / 32.f +
-                                  0.5f);
+        blockX = (int) floorf((cursorX + camera->position.x) / 32.f +
+                              0.5f);
+        blockY = (int) floorf((((float) window->height - cursorY) + camera->position.y) / 32.f +
+                              0.5f);
 
         pipeline->beginPass(camera, blocks->atlas, blocks->VAO, [&blocks, &camera]() { blocks->draw(camera); });
 
@@ -114,11 +186,9 @@ int main() {
                 if (input->isKeyJustPressed(GLFW_KEY_N)) {
                     blocks->blocks.clear();
                 }
-                if(input->isKeyJustPressed(GLFW_KEY_P) && input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)){
-                    for(int x = 0; x < 512; x++){
-                        for(int y = 0; y < 512; y++){
-                            blocks->set(x, y);
-                        }
+                if (input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
+                    if (input->isKeyJustPressed(GLFW_KEY_P)) {
+                        Engine::HUD::show_command_palette ^= 1;
                     }
                 }
             } else {
@@ -139,7 +209,7 @@ int main() {
             }
 
             if (!io->WantCaptureMouse) {
-                if(input->getMouseWheelDelta().y != 0.f){
+                if (input->getMouseWheelDelta().y != 0.f) {
                     camera->zoomIn(input->getMouseWheelDelta().y * -0.1f);
                 }
                 if (!input->isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
@@ -209,99 +279,106 @@ int main() {
         }
 
         Engine::HUD::begin();
-        ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Once);
-        ImGui::SetNextWindowBgAlpha(0.f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.f);
-        if (ImGui::Begin("##Debug", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
-                                             ImGuiWindowFlags_NoFocusOnAppearing |
-                                             ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove)) {
-            ImGui::Text("FPS: %.0f", io->Framerate);
-            ImGui::Text("Tick: %.1fms", blocks->tickTime * 1000.);
+        if (displayFps) {
+            ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Once);
+            ImGui::SetNextWindowBgAlpha(0.f);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.f);
+            if (ImGui::Begin("##Debug", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                                                 ImGuiWindowFlags_NoFocusOnAppearing |
+                                                 ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove)) {
+                ImGui::Text("FPS: %.0f", io->Framerate);
+                ImGui::Text("Tick: %.1fms", blocks->tickTime);
+            }
+            ImGui::End();
+            ImGui::PopStyleVar();
         }
-        ImGui::End();
-        ImGui::PopStyleVar();
-        ImGui::SetNextWindowPos(ImVec2(5, 50), ImGuiCond_Once);
-        if (ImGui::Begin("Simulation", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_MenuBar)) {
-            if (ImGui::BeginMenuBar()) {
-                if (ImGui::BeginMenu("File")) {
-                    if (ImGui::MenuItem("\xef\x85\x9b  New", "Ctrl + N"))
-                        blocks->blocks.clear();
-                    if (ImGui::MenuItem("\xef\x81\xbc Open", "Ctrl + O"))
-                        loadDialog.Open();
-                    if (ImGui::MenuItem("\xef\x83\x87  Save", "Ctrl + S"))
-                        saveMenu = true;
-                    ImGui::EndMenu();
+        if (displayMenu) {
+            ImGui::SetNextWindowPos(ImVec2(5, 50), ImGuiCond_Once);
+            if (ImGui::Begin("Simulation", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_MenuBar)) {
+                if (ImGui::BeginMenuBar()) {
+                    if (ImGui::BeginMenu("File")) {
+                        if (ImGui::MenuItem("\xef\x85\x9b  New", "Ctrl + N"))
+                            blocks->blocks.clear();
+                        if (ImGui::MenuItem("\xef\x81\xbc Open", "Ctrl + O"))
+                            loadDialog.Open();
+                        if (ImGui::MenuItem("\xef\x83\x87  Save", "Ctrl + S"))
+                            saveMenu = true;
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::BeginMenu("Edit")) {
+                        if (ImGui::MenuItem("\xef\x83\x85 Copy", "Ctrl + C"))
+                            blocks->copy(blockX, blockY);
+                        if (ImGui::MenuItem("\xef\x83\xaa Paste", "Ctrl + V"))
+                            blocks->paste(blockX, blockY);
+                        if (ImGui::MenuItem("\xef\x83\x84 Cut", "Ctrl + X"))
+                            blocks->cut(blockX, blockY);
+                        if (ImGui::MenuItem("\xef\xa1\x8c Select all", "Ctrl + A"))
+                            blocks->select_all();
+                        if (ImGui::MenuItem("\xef\x87\xb8 Delete", "DELETE"))
+                            blocks->delete_selected();
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::BeginMenu("Examples")) {
+                        if (ImGui::MenuItem("\xef\x81\xbc Blocks overview"))
+                            blocks->load_example(camera, "data/examples/Blocks.ls");
+                        if (ImGui::MenuItem("\xef\x81\xbc 1 Byte RAM"))
+                            blocks->load_example(camera, "data/examples/RAM1Byte.ls");
+                        if (ImGui::MenuItem("\xef\x81\xbc 4 Bit adder"))
+                            blocks->load_example(camera, "data/examples/Adder4Bit.ls");
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::BeginMenu("Graphics")) {
+                        ImGui::MenuItem("VSync", nullptr, &vsync);
+                        ImGui::MenuItem("Bloom", nullptr, &pipeline->bloom);
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::BeginMenu("Help")) {
+                        if (ImGui::MenuItem("Console", "Ctrl + Shift + P"))
+                            Engine::HUD::show_command_palette ^= 1;
+                        if (ImGui::MenuItem("Itch.io"))
+                            ShellExecute(nullptr, nullptr, "https://kewldan.itch.io/logical-system", nullptr, nullptr,
+                                         SW_SHOW);
+                        if (ImGui::MenuItem("Source code"))
+                            ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
+                                         nullptr, SW_SHOW);
+                        static const std::string versionString = std::format("Version: 2.0.7 ({})", __DATE__);
+                        static const char *version = versionString.c_str();
+                        ImGui::MenuItem(version, nullptr, nullptr, false);
+                        ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
+                        ImGui::EndMenu();
+                    }
+                    ImGui::EndMenuBar();
                 }
-                if (ImGui::BeginMenu("Edit")) {
-                    if (ImGui::MenuItem("\xef\x83\x85 Copy", "Ctrl + C"))
-                        blocks->copy(blockX, blockY);
-                    if (ImGui::MenuItem("\xef\x83\xaa Paste", "Ctrl + V"))
-                        blocks->paste(blockX, blockY);
-                    if (ImGui::MenuItem("\xef\x83\x84 Cut", "Ctrl + X"))
-                        blocks->cut(blockX, blockY);
-                    if (ImGui::MenuItem("\xef\xa1\x8c Select all", "Ctrl + A"))
-                        blocks->select_all();
-                    if (ImGui::MenuItem("\xef\x87\xb8 Delete", "DELETE"))
-                        blocks->delete_selected();
-                    ImGui::EndMenu();
+                ImGui::Checkbox("Play", &blocks->simulate);
+                if (!blocks->simulate) {
+                    ImGui::SameLine();
+                    if (ImGui::Button("Tick")) {
+                        blocks->update();
+                    }
                 }
-                if (ImGui::BeginMenu("Examples")) {
-                    if (ImGui::MenuItem("\xef\x81\xbc Blocks overview"))
-                        blocks->load_example(camera, "data/examples/Blocks.ls");
-                    if (ImGui::MenuItem("\xef\x81\xbc 1 Byte RAM"))
-                        blocks->load_example(camera, "data/examples/RAM1Byte.ls");
-                    if (ImGui::MenuItem("\xef\x81\xbc 4 Bit adder"))
-                        blocks->load_example(camera, "data/examples/Adder4Bit.ls");
-                    ImGui::EndMenu();
+                ImGui::SliderInt("TPS", &blocks->TPS, 2, 256);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Simulation ticks per second");
+                    ImGui::EndTooltip();
                 }
-                if (ImGui::BeginMenu("Graphics")) {
-                    ImGui::MenuItem("VSync", nullptr, &vsync);
-                    ImGui::MenuItem("Bloom", nullptr, &pipeline->bloom);
-                    ImGui::EndMenu();
+                ImGui::Combo("Block", &blocks->playerInput.currentBlock,
+                             "Wire straight\0Wire angled right\0Wire angled left\0Wire T\0Wire cross\0Wire 2\0Wire 3\0NOT\0AND\0NAND\0XOR\0NXOR\0Switch\0Clock\0Lamp\0");
+                if (ImGui::IsItemHovered()) {
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Use 0-9 for 0-9 elements\nand SHIFT for 10-14 elements");
+                    ImGui::EndTooltip();
                 }
-                if (ImGui::BeginMenu("Help")) {
-                    if (ImGui::MenuItem("Itch.io"))
-                        ShellExecute(nullptr, nullptr, "https://kewldan.itch.io/logical-system", nullptr, nullptr,
-                                     SW_SHOW);
-                    if (ImGui::MenuItem("Source code"))
-                        ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
-                                     nullptr, SW_SHOW);
-                    static const std::string versionString = std::format("Version: 2.0.5 ({})", __DATE__);
-                    static const char *version = versionString.c_str();
-                    ImGui::MenuItem(version, nullptr, nullptr, false);
-                    ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
-                    ImGui::EndMenu();
+                ImGui::Combo("Rotation", &blocks->playerInput.currentRotation, "Up\0Right\0Down\0Left\0");
+                if (ImGui::IsItemHovered()) {
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Use R for rotate clockwise\nand SHIFT for anti-clockwise");
+                    ImGui::EndTooltip();
                 }
-                ImGui::EndMenuBar();
             }
-            ImGui::Checkbox("Play", &blocks->simulate);
-            if (!blocks->simulate) {
-                ImGui::SameLine();
-                if(ImGui::Button("Tick")){
-                    blocks->update();
-                }
-            }
-            ImGui::SliderInt("TPS", &blocks->TPS, 2, 256);
-            if (ImGui::IsItemHovered()) {
-                ImGui::BeginTooltip();
-                ImGui::Text("Simulation ticks per second");
-                ImGui::EndTooltip();
-            }
-            ImGui::Combo("Block", &blocks->playerInput.currentBlock,
-                         "Wire straight\0Wire angled right\0Wire angled left\0Wire T\0Wire cross\0Wire 2\0Wire 3\0NOT\0AND\0NAND\0XOR\0NXOR\0Switch\0Clock\0Lamp\0");
-            if (ImGui::IsItemHovered()) {
-                ImGui::BeginTooltip();
-                ImGui::Text("Use 0-9 for 0-9 elements\nand SHIFT for 10-14 elements");
-                ImGui::EndTooltip();
-            }
-            ImGui::Combo("Rotation", &blocks->playerInput.currentRotation, "Up\0Right\0Down\0Left\0");
-            if (ImGui::IsItemHovered()) {
-                ImGui::BeginTooltip();
-                ImGui::Text("Use R for rotate clockwise\nand SHIFT for anti-clockwise");
-                ImGui::EndTooltip();
-            }
+
+            ImGui::End();
         }
-        ImGui::End();
 
         loadDialog.Display();
         if (loadDialog.HasSelected()) {

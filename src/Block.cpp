@@ -9,7 +9,7 @@ long long Block_TO_LONG(int x, int y) {
     return static_cast<long long>(x) << 32 | (y & 0xFFFFFFFFL);
 }
 
-BlockType::BlockType(int id, const std::function<bool(int)> &func) {
+BlockType::BlockType(BlockId id, const BlockActivationFunction &func) {
     ASSERT("Function is nullptr", func != nullptr);
     ASSERT("ID must be >= 0", id >= 0);
     this->id = id;

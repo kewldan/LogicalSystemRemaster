@@ -6,7 +6,10 @@
 #include "Engine.h"
 #include <functional>
 
-#define BlockRotation unsigned char
+typedef unsigned char BlockRotation;
+typedef unsigned char BlockId;
+typedef unsigned char BlockConnectionCount;
+typedef std::function<bool(BlockConnectionCount)> BlockActivationFunction;
 
 const glm::mat4 blockScaleMatrix = glm::scale(glm::mat4(1), glm::vec3(32, 32, 1));
 const glm::mat4 blockTransformMatrices[] = {
@@ -22,12 +25,12 @@ const glm::mat4 blockTransformMatrices[] = {
 
 class BlockType {
 public:
-    int id{};
-    std::function<bool(int)> isActive;
+    BlockId id{};
+    BlockActivationFunction isActive;
 
     BlockType();
 
-    BlockType(int id, const std::function<bool(int)> &func);
+    BlockType(BlockId id, const BlockActivationFunction &func);
 };
 
 BlockRotation rotateBlock(BlockRotation r, int k);
@@ -39,10 +42,11 @@ long long Block_TO_LONG(int x, int y);
 
 class Block {
 public:
-    int connections{};
+    BlockConnectionCount connections{};
     BlockRotation rotation{};
     bool active{}, selected{};
     BlockType *type;
+    const char *testField = "MY MEMORY IS GOOD";
     glm::mat4 mvp{};
 
     glm::mat4 &getMVP();
