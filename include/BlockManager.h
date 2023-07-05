@@ -88,7 +88,7 @@ public:
 
     void delete_selected();
 
-    void copy(int blockX, int blockY);
+    void copy(int blockX, int blockY, bool notify = true);
 
     void paste(int blockX, int blockY);
 

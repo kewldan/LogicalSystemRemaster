@@ -12,6 +12,8 @@
 
 ImGuiIO *io;
 ImFontConfig font_cfg;
+BlockManager* blocks;
+Engine::Camera2D* camera;
 
 bool saveMenu, vsync = true, displayFps = false, displayMenu = true;
 ImGui::FileBrowser saveDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CreateNewDir), loadDialog;
@@ -20,12 +22,52 @@ float map(float value, float max1, float min2, float max2) {
     return min2 + value * (max2 - min2) / max1;
 }
 
+LONG WINAPI crashHandler(EXCEPTION_POINTERS* exceptionInfo) {
+    DWORD exceptionCode = exceptionInfo->ExceptionRecord->ExceptionCode;
+    PVOID exceptionAddress = exceptionInfo->ExceptionRecord->ExceptionAddress;
+
+    char buffer[256];
+    char codeString[32];
+    const char* exceptionMessage;
+
+    switch (exceptionCode) {
+        case EXCEPTION_ACCESS_VIOLATION:
+            exceptionMessage = "Access violation";
+            break;
+        case EXCEPTION_ILLEGAL_INSTRUCTION:
+            exceptionMessage = "Illegal instruction";
+            break;
+        case EXCEPTION_STACK_OVERFLOW:
+            exceptionMessage = "Stack overflow";
+            break;
+        default:
+            snprintf(codeString, sizeof(codeString), "UNEXPECTED (%lu)", exceptionCode);
+            exceptionMessage = codeString;
+            break;
+    }
+
+    snprintf(buffer, sizeof(buffer), "Exception: %s\nAddress: 0x%p", exceptionMessage, exceptionAddress);
+    MessageBoxA(nullptr, buffer, "Crash", MB_ICONERROR);
+
+    char path[128];
+
+    snprintf(path, sizeof(path), "crash-%lld.bson", std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+
+    if(blocks->length() > 0)
+        blocks->save(camera, path);
+
+    exit(1);
+}
+
 int main() {
+    SetUnhandledExceptionFilter(crashHandler);
+
+
     Engine::Window::init();
     auto window = new Engine::Window(1280, 720, "Logical system");
     window->setIcon("data/textures/favicon.png");
     auto input = new Engine::Input(window->getId());
-    auto camera = new Engine::Camera2D(window);
+    camera = new Engine::Camera2D(window);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -57,7 +99,7 @@ int main() {
     loadDialog.SetTitle("Load scheme");
     loadDialog.SetTypeFilters({".ls", ".bson"});
 
-    auto blocks = new BlockManager(window, quadVertices, (int) sizeof(quadVertices));
+    blocks = new BlockManager(window, quadVertices, (int) sizeof(quadVertices));
 
     int blockX, blockY;
 
@@ -72,7 +114,7 @@ int main() {
                     "1024x1024",
             });
         };
-        stress_test_cmd.SubsequentCallback = [&blocks](int s) {
+        stress_test_cmd.SubsequentCallback = [](int s) {
             int dim;
             switch (s) {
                 case 0:
@@ -115,7 +157,7 @@ int main() {
 
         ImCmd::Command block_info_command;
         block_info_command.Name = "Show block info";
-        block_info_command.InitialCallback = [&blocks, &blockX, &blockY]() {
+        block_info_command.InitialCallback = [&blockX, &blockY]() {
             ImGuiToast toast(ImGuiToastType_Info, 7000);
             Block *block = blocks->get(blockX, blockY);
             if (block) {
@@ -146,7 +188,7 @@ int main() {
         blockY = (int) floorf((((float) window->height - cursorY) + camera->position.y) / 32.f +
                               0.5f);
 
-        pipeline->beginPass(camera, blocks->atlas, blocks->VAO, [&blocks, &camera]() { blocks->draw(camera); });
+        pipeline->beginPass(camera, blocks->atlas, blocks->VAO, []() { blocks->draw(camera); });
 
         if (!io->WantCaptureKeyboard) {
             for (int i = 0; i <= 10; i++) {
@@ -297,34 +339,34 @@ int main() {
             if (ImGui::Begin("Simulation", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_MenuBar)) {
                 if (ImGui::BeginMenuBar()) {
                     if (ImGui::BeginMenu("File")) {
-                        if (ImGui::MenuItem("\xef\x85\x9b  New", "Ctrl + N"))
+                        if (ImGui::MenuItem(ICON_FA_FILE "  New", "Ctrl + N"))
                             blocks->blocks.clear();
-                        if (ImGui::MenuItem("\xef\x81\xbc Open", "Ctrl + O"))
+                        if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " Open", "Ctrl + O"))
                             loadDialog.Open();
-                        if (ImGui::MenuItem("\xef\x83\x87  Save", "Ctrl + S"))
+                        if (ImGui::MenuItem(ICON_FA_SAVE "  Save", "Ctrl + S"))
                             saveMenu = true;
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Edit")) {
-                        if (ImGui::MenuItem("\xef\x83\x85 Copy", "Ctrl + C"))
+                        if (ImGui::MenuItem(ICON_FA_COPY " Copy", "Ctrl + C"))
                             blocks->copy(blockX, blockY);
-                        if (ImGui::MenuItem("\xef\x83\xaa Paste", "Ctrl + V"))
+                        if (ImGui::MenuItem(ICON_FA_PASTE " Paste", "Ctrl + V"))
                             blocks->paste(blockX, blockY);
-                        if (ImGui::MenuItem("\xef\x83\x84 Cut", "Ctrl + X"))
+                        if (ImGui::MenuItem(ICON_FA_CUT " Cut", "Ctrl + X"))
                             blocks->cut(blockX, blockY);
-                        if (ImGui::MenuItem("\xef\xa1\x8c Select all", "Ctrl + A"))
+                        if (ImGui::MenuItem(ICON_FA_CHECK_SQUARE " Select all", "Ctrl + A"))
                             blocks->select_all();
-                        if (ImGui::MenuItem("\xef\x87\xb8 Delete", "DELETE"))
+                        if (ImGui::MenuItem(ICON_FA_TRASH " Delete", "DELETE"))
                             blocks->delete_selected();
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Examples")) {
-                        if (ImGui::MenuItem("\xef\x81\xbc Blocks overview"))
-                            blocks->load_example(camera, "data/examples/Blocks.ls");
-                        if (ImGui::MenuItem("\xef\x81\xbc 1 Byte RAM"))
-                            blocks->load_example(camera, "data/examples/RAM1Byte.ls");
-                        if (ImGui::MenuItem("\xef\x81\xbc 4 Bit adder"))
-                            blocks->load_example(camera, "data/examples/Adder4Bit.ls");
+                        if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " Blocks overview"))
+                            blocks->load_example(camera, "data/examples/BlocksSample.bson");
+                        if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " 1 Byte RAM"))
+                            blocks->load_example(camera, "data/examples/MemorySample.bson");
+                        if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " 4 Bit adder"))
+                            blocks->load_example(camera, "data/examples/AdderSample.bson");
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Graphics")) {
@@ -333,15 +375,15 @@ int main() {
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Help")) {
-                        if (ImGui::MenuItem("Console", "Ctrl + Shift + P"))
+                        if (ImGui::MenuItem(ICON_FA_TERMINAL " Console", "Ctrl + Shift + P"))
                             Engine::HUD::show_command_palette ^= 1;
-                        if (ImGui::MenuItem("Itch.io"))
+                        if (ImGui::MenuItem(ICON_FA_LINK "  Itch.io"))
                             ShellExecute(nullptr, nullptr, "https://kewldan.itch.io/logical-system", nullptr, nullptr,
                                          SW_SHOW);
-                        if (ImGui::MenuItem("Source code"))
+                        if (ImGui::MenuItem(ICON_FA_LINK "  Source code"))
                             ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                          nullptr, SW_SHOW);
-                        static const std::string versionString = std::format("Version: 2.0.7 ({})", __DATE__);
+                        static const std::string versionString = std::format("Version: 2.0.8 ({})", __DATE__);
                         static const char *version = versionString.c_str();
                         ImGui::MenuItem(version, nullptr, nullptr, false);
                         ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);

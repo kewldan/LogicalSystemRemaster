@@ -27,7 +27,7 @@ Block::Block(int x, int y, BlockType *type, BlockRotation rotation) {
     ASSERT("Rotation invalid", rotation >= 0 && rotation <= 3);
     this->type = type;
     this->rotation = rotation;
-    updateMvp(x << 5, y << 5);
+    updateMvp(x, y);
 }
 
 Block::Block(const char *buffer, BlockType *types, long long *pos) {
@@ -46,7 +46,7 @@ Block::Block(const char *buffer, BlockType *types, long long *pos) {
     ASSERT("Type isActive function is nullptr", type->isActive != nullptr);
     memcpy(&rotation, buffer + 9, 1);
     memcpy(&active, buffer + 10, 1);
-    updateMvp(Block_X(*pos) << 5, Block_Y(*pos) << 5);
+    updateMvp(Block_X(*pos), Block_Y(*pos));
 }
 
 void Block::write(char *buffer, long long pos) {
@@ -58,6 +58,6 @@ void Block::write(char *buffer, long long pos) {
 }
 
 void Block::updateMvp(int x, int y) {
-    mvp = glm::translate(glm::mat4(1), glm::vec3(x, y, -0.2f));
+    mvp = glm::translate(glm::mat4(1), glm::vec3(x << 5, y << 5, -0.2f));
     mvp *= blockTransformMatrices[rotation];
 }

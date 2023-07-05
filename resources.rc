@@ -1,6 +1,7 @@
 MAINICON ICON "data/favicon.ico"
-VERSION 2.0.7
+VERSION 2.0.8
 data/fonts/comfortaa.ttf RCDATA "data/fonts/comfortaa.ttf"
+data/fonts/fa.ttf RCDATA "data/fonts/fa.ttf"
 
 data/shaders/background.vert RCDATA "data/shaders/background.vert"
 data/shaders/background.frag RCDATA "data/shaders/background.frag"
@@ -16,9 +17,13 @@ data/shaders/quad.frag RCDATA "data/shaders/quad.frag"
 data/textures/favicon.png RCDATA "data/textures/favicon.png"
 data/textures/blocks.png RCDATA "data/textures/blocks.png"
 
+data/examples/AdderSample.bson RCDATA "data/examples/AdderSample.bson"
+data/examples/BlocksSample.bson RCDATA "data/examples/BlocksSample.bson"
+data/examples/MemorySample.bson RCDATA "data/examples/MemorySample.bson"
+
 1 VERSIONINFO
- FILEVERSION 2,0,7
- PRODUCTVERSION 2,0,7
+ FILEVERSION 2,0,8
+ PRODUCTVERSION 2,0,8
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L

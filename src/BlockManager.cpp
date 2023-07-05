@@ -114,7 +114,7 @@ void BlockManager::rotate(int x, int y, BlockRotation rotation) {
     ASSERT("Rotation invalid", rotation >= 0 && rotation <= 3);
     Block *block = get(x, y);
     block->rotation = rotation;
-    block->updateMvp(x << 5, y << 5);
+    block->updateMvp(x, y);
 }
 
 int BlockManager::length() {
@@ -251,7 +251,7 @@ void BlockManager::thread_tick() {
     }
 }
 
-void BlockManager::copy(int blockX, int blockY) {
+void BlockManager::copy(int blockX, int blockY, bool notify) {
     auto *b = (unsigned char *) malloc(selectedBlocks * 11);
     int o = 0;
     for (auto &it: blocks) {
@@ -272,13 +272,15 @@ void BlockManager::copy(int blockX, int blockY) {
     buf[b64len] = 0;
     glfwSetClipboardString(window->getId(), reinterpret_cast<const char *>(buf));
 
-    ImGuiToast toast(ImGuiToastType_Success, 2000);
-    toast.set_title("%d blocks copied", selectedBlocks);
-    ImGui::InsertNotification(toast);
+    if(notify) {
+        ImGuiToast toast(ImGuiToastType_Success, 2000);
+        toast.set_title("%d blocks copied", selectedBlocks);
+        ImGui::InsertNotification(toast);
+    }
 }
 
 void BlockManager::cut(int blockX, int blockY) {
-    copy(blockX, blockY);
+    copy(blockX, blockY, false);
     delete_selected();
     ImGuiToast toast(ImGuiToastType_Success, 2000);
     toast.set_title("%d blocks cut", selectedBlocks);
@@ -303,7 +305,7 @@ void BlockManager::paste(int blockX, int blockY) {
                 int x = Block_X(pos) + blockX;
                 int y = Block_Y(pos) + blockY;
                 blocks[Block_TO_LONG(x, y)] = block;
-                block->updateMvp(x << 5, y << 5);
+                block->updateMvp(x, y);
             }
         } else {
             count = -1;
@@ -361,6 +363,7 @@ void BlockManager::load_from_memory(Engine::Camera2D *camera, const char *data, 
             int x = Block_X(it["pos"].get<long long>());
             int y = Block_Y(it["pos"].get<long long>());
             auto *block = new Block(x, y, &types[it["type"].get<unsigned char>()], it["rotation"].get<BlockRotation>());
+            block->active = it["active"];
             blocks[it["pos"].get<long long>()] = block;
         }
     } else {
@@ -417,7 +420,7 @@ void BlockManager::load_example(Engine::Camera2D *camera, const char *path) {
     int size = 0;
     auto data = (const char *) Engine::Filesystem::readResourceFile(path, &size);
     if (data) {
-        load_from_memory(camera, data, size);
+        load_from_memory(camera, data, size, true);
         ImGuiToast toast(ImGuiToastType_Success, 2000);
         toast.set_title("%s loaded successfully", path);
         ImGui::InsertNotification(toast);

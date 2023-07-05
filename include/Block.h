@@ -46,7 +46,6 @@ public:
     BlockRotation rotation{};
     bool active{}, selected{};
     BlockType *type;
-    const char *testField = "MY MEMORY IS GOOD";
     glm::mat4 mvp{};
 
     glm::mat4 &getMVP();
