@@ -1,15 +1,10 @@
 #pragma once
 
-#include "Block.h"
-#include "Engine.h"
 #include <thread>
 #include <mutex>
-#include "IO/Filesystem.h"
-#include "Window.h"
-#include <nlohmann/json.hpp>
-#include "turbob64.h"
-#include "HUD.h"
-#include "Camera2D.h"
+#include <Window.h>
+#include <Camera2D.h>
+#include "Block.h"
 
 typedef std::unordered_map<long long, Block *> Blocks;
 
@@ -33,15 +28,15 @@ public:
 
 class BlockManager {
 private:
-    BlockInfo *info;
+    std::vector<BlockInfo> info;
 
     void thread_tick();
 
 public:
-    unsigned int atlas{}, VAO{}, *VBO;
+    unsigned int atlas{}, VAO{}, VBO[2];
     Blocks blocks;
     BlockType *types;
-    bool simulate;
+    bool simulate = true;
     int TPS, selectedBlocks{};
     double tickTime{};
     std::thread thread;

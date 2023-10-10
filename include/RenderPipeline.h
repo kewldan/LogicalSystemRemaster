@@ -1,8 +1,7 @@
 #pragma once
 
-#include "Shader.h"
-#include "Camera2D.h"
-#include <cmath>
+#include <Shader.h>
+#include <Camera2D.h>
 #include <functional>
 
 const float screenVertices[] = {

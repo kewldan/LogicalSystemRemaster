@@ -1,0 +1,37 @@
+{
+  "name" : "logicalsystem",
+  "version-string" : "1.0.0",
+  "builtin-baseline" : "6ced77403708cb188c43172c95b7d829c4518862",
+  "dependencies" : [ {
+    "name" : "glad",
+    "version>=" : "0.1.36"
+  }, {
+    "name" : "glfw3",
+    "version>=" : "3.3.8#2"
+  }, {
+    "name" : "glm",
+    "version>=" : "0.9.9.8#2"
+  }, {
+    "name" : "plog",
+    "version>=" : "1.1.9"
+  }, {
+    "name" : "zlib",
+    "version>=" : "1.2.13"
+  }, {
+    "name" : "stb",
+    "version>=" : "2023-04-11#1"
+  }, {
+    "name" : "imgui",
+    "features" : [ "freetype", "glfw-binding", "opengl3-binding" ],
+    "version>=" : "1.89.7"
+  }, {
+    "name" : "nlohmann-json",
+    "version>=" : "3.11.2"
+  }, {
+    "name" : "aklomp-base64",
+    "version>=" : "2023-01-06#1"
+  }, {
+    "name" : "nativefiledialog",
+    "version>=" : "2022-01-20"
+  } ]
+}

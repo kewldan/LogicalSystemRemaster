@@ -1,33 +1,47 @@
 ﻿cmake_minimum_required(VERSION 3.23)
-project("LogicalSystem"
+project(LogicalSystem
         HOMEPAGE_URL https://kewldan.itch.io/logical-system
         VERSION 2.0.8
         LANGUAGES CXX
-        )
+)
+
+set(ENGINE_DIR "E:\\Projects\\engine")
 
 add_definitions(-DBLOCK_BATCHING=8192)
 
 set(CMAKE_CXX_STANDARD 20)
-include("C:/Users/kewldan/Desktop/engine/Import.cmake")
 
 include_directories(
         include
+        ${ENGINE_DIR}/include
+        ${ENGINE_DIR}/thirdparty
 )
 
-file(GLOB PROJECT_SRCS
-        "include/*.h" "src/*.cpp"
-        )
+find_package(glad CONFIG REQUIRED)
+find_package(glfw3 CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
+find_package(plog CONFIG REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(Stb REQUIRED)
+find_package(imgui CONFIG REQUIRED)
+find_package(base64 CONFIG REQUIRED)
+find_package(unofficial-nativefiledialog CONFIG REQUIRED)
 
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mwindows")
-
-link_directories(
-        ${ENGINE_DIR}/lib
+file(GLOB_RECURSE PROJECT_SRCS
+        src/*.cpp
 )
-
-add_executable(${PROJECT_NAME} ${PROJECT_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/resources.rc")
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
-    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
+    link_directories(
+            ${ENGINE_DIR}/build/release
+    )
+else ()
+    link_directories(
+            ${ENGINE_DIR}/build/debug
+    )
 endif ()
 
-target_link_libraries(${PROJECT_NAME} glfw3 glad tb64 brotlicommon-static brotlidec-static brotlienc-static Ws2_32 imgui${_D} engine${_D} freetype${_D} bz2${_D} libpng16${_D} zlib${_D})
+add_executable(LogicalSystem ${PROJECT_SRCS} resources.rc)
+
+target_link_libraries(LogicalSystem PRIVATE Engine glad::glad glfw glm::glm plog::plog ZLIB::ZLIB aklomp::base64 imgui::imgui unofficial::nativefiledialog::nfd)
+target_include_directories(LogicalSystem PRIVATE ${Stb_INCLUDE_DIR})

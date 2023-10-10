@@ -1,4 +1,9 @@
 #include "BlockManager.h"
+#include "stb_image.h"
+
+#include <imgui_notify.h>
+#include <libbase64.h>
+#include <nlohmann/json.hpp>
 
 BlockManager::BlockManager(Engine::Window *window, const float vertices[], int count) {
     ASSERT("Window is nullptr", window != nullptr);
@@ -28,9 +33,6 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
     }
     stbi_image_free(data);
 
-    info = new BlockInfo[BLOCK_BATCHING];
-    VBO = new unsigned int[2];
-    simulate = true;
     this->window = window;
     TPS = 8;
 
@@ -252,6 +254,8 @@ void BlockManager::thread_tick() {
 }
 
 void BlockManager::copy(int blockX, int blockY, bool notify) {
+    return; //TODO: Fix base64
+
     auto *b = (unsigned char *) malloc(selectedBlocks * 11);
     int o = 0;
     for (auto &it: blocks) {
@@ -263,16 +267,18 @@ void BlockManager::copy(int blockX, int blockY, bool notify) {
         }
     }
 
-    unsigned long length = 0;
-    auto *deflated = Engine::Filesystem::compress(b, selectedBlocks * 11, &length);
 
-    size_t b64len = tb64enclen(length);
-    auto *buf = new unsigned char[b64len + 1];
-    tb64enc(deflated, length, buf);
+    unsigned long len = 0;
+    auto *deflated = Engine::Filesystem::compress(b, selectedBlocks * 11, &len);
+
+    size_t b64len = 0;
+    base64_encode(reinterpret_cast<const char *>(deflated), len, nullptr, &b64len, 0);
+    auto *buf = new char[b64len + 1];
+    base64_encode(reinterpret_cast<const char *>(deflated), len, buf, &b64len, 0);
     buf[b64len] = 0;
-    glfwSetClipboardString(window->getId(), reinterpret_cast<const char *>(buf));
+    glfwSetClipboardString(window->getId(), buf);
 
-    if(notify) {
+    if (notify) {
         ImGuiToast toast(ImGuiToastType_Success, 2000);
         toast.set_title("%d blocks copied", selectedBlocks);
         ImGui::InsertNotification(toast);
@@ -288,14 +294,19 @@ void BlockManager::cut(int blockX, int blockY) {
 }
 
 void BlockManager::paste(int blockX, int blockY) {
+    return; //TODO: Fix base64
+
     const char *importString = glfwGetClipboardString(window->getId());
+
+    size_t written = 0;
+    base64_decode(importString, strlen(importString), nullptr, &written, 0);
+    auto *bytes = new char[written];
+    base64_decode(importString, strlen(importString), bytes, &written, 0);
+
     unsigned long count;
-    auto *bytes = new unsigned char[tb64declen(reinterpret_cast<const unsigned char *>(importString),
-                                               strlen(importString))];
-    size_t written = tb64dec(reinterpret_cast<const unsigned char *>(importString), strlen(importString), bytes);
     if (written > 4) {
         unsigned long length = 0;
-        auto *inflated = Engine::Filesystem::decompress(bytes, written, &length);
+        auto *inflated = Engine::Filesystem::decompress(reinterpret_cast<unsigned char *>(bytes), written, &length);
 
         if (length % 11 == 0) {
             count = length / 11UL;
@@ -383,30 +394,16 @@ void BlockManager::load_from_memory(Engine::Camera2D *camera, const char *data, 
 
 void BlockManager::draw(Engine::Camera2D *camera) {
     int j = 0;
-    int LB = (int) camera->position.x + (int) camera->left - 16;
-    int RB = (int) camera->position.x + (int) camera->right + 16;
-    int BB = (int) camera->position.y + (int) camera->bottom - 16;
-    int TB = (int) camera->position.y + (int) camera->top + 16;
-    for (auto &it: blocks) {
-        int x = Block_X(it.first) << 5;
-        int y = Block_Y(it.first) << 5;
-        if (x > LB && x < RB && y > BB && y < TB) {
-            info[j] = BlockInfo(it.second->type->id, it.second->active,
-                                it.second->selected,
-                                it.second->getMVP());
-            j++;
-        }
-        if (j == BLOCK_BATCHING) {
-            glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * j, info);
-            glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, j);
-            j = 0;
-        }
-    }
-    if (j > 0) {
+
+    size_t left = blocks.size();
+    size_t index = 0;
+
+    while (left > 0) {
         glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * j, info);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * j, info.data() + index);
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, j);
+        index += left > BLOCK_BATCHING ? BLOCK_BATCHING : left;
+        left -= left > BLOCK_BATCHING ? BLOCK_BATCHING : left;
     }
 }
 

@@ -1,4 +1,5 @@
 #include "Block.h"
+#include "plog/Log.h"
 
 BlockRotation rotateBlock(BlockRotation r, int k) {
     if (r == 0 && k == -1) return 3;
@@ -10,8 +11,8 @@ long long Block_TO_LONG(int x, int y) {
 }
 
 BlockType::BlockType(BlockId id, const BlockActivationFunction &func) {
-    ASSERT("Function is nullptr", func != nullptr);
-    ASSERT("ID must be >= 0", id >= 0);
+    assert(func != nullptr);
+    assert(id >= 0);
     this->id = id;
     isActive = func;
 }
@@ -23,17 +24,17 @@ glm::mat4 &Block::getMVP() {
 }
 
 Block::Block(int x, int y, BlockType *type, BlockRotation rotation) {
-    ASSERT("Type is nullptr", type != nullptr);
-    ASSERT("Rotation invalid", rotation >= 0 && rotation <= 3);
+    assert(type != nullptr);
+    assert(rotation >= 0 && rotation <= 3);
     this->type = type;
     this->rotation = rotation;
     updateMvp(x, y);
 }
 
 Block::Block(const char *buffer, BlockType *types, long long *pos) {
-    ASSERT("Buffer is nullptr", buffer != nullptr);
-    ASSERT("Position is nullptr", pos != nullptr);
-    ASSERT("Types is nullptr", types != nullptr);
+    assert(buffer != nullptr);
+    assert(pos != nullptr);
+    assert(types != nullptr);
     memcpy(pos, buffer, 8);
     int t = 0;
     memcpy(&t, buffer + 8, 1);
@@ -42,15 +43,13 @@ Block::Block(const char *buffer, BlockType *types, long long *pos) {
         PLOGW << "Block from buffer in " << *pos << " at " << (void *) buffer << " has invalid type, save corrupted";
     }
     type = &types[t];
-    ASSERT("Type is nullptr", type != nullptr);
-    ASSERT("Type isActive function is nullptr", type->isActive != nullptr);
     memcpy(&rotation, buffer + 9, 1);
     memcpy(&active, buffer + 10, 1);
     updateMvp(Block_X(*pos), Block_Y(*pos));
 }
 
 void Block::write(char *buffer, long long pos) {
-    ASSERT("Buffer is nullptr", buffer != nullptr);
+    assert(buffer != nullptr);
     memcpy(buffer, &pos, 8);
     memcpy(buffer + 8, &type->id, 1);
     memcpy(buffer + 9, &rotation, 1);

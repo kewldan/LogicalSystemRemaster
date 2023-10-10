@@ -1,10 +1,8 @@
 #pragma once
 
-#include "Texture.h"
-#include "glm/glm.hpp"
-#include <glm/gtx/transform.hpp>
-#include "Engine.h"
 #include <functional>
+#include <glm/glm.hpp>
+#include <glm/gtx/transform.hpp>
 
 typedef unsigned char BlockRotation;
 typedef unsigned char BlockId;
