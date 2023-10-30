@@ -261,35 +261,33 @@ void BlockManager::thread_tick() {
 }
 
 void BlockManager::copy(int blockX, int blockY, bool notify) {
-    return; //TODO: Fix base64
+    auto *b = (unsigned char *) malloc(selectedBlocks * 11);
+    int o = 0;
+    for (auto &it: blocks) {
+        if (it.second->selected) {
+            int x = Block_X(it.first) - blockX;
+            int y = Block_Y(it.first) - blockY;
+            it.second->write(reinterpret_cast<char *>(b) + o, Block_TO_LONG(x, y));
+            o += 11;
+        }
+    }
 
-//    auto *b = (unsigned char *) malloc(selectedBlocks * 11);
-//    int o = 0;
-//    for (auto &it: blocks) {
-//        if (it.second->selected) {
-//            int x = Block_X(it.first) - blockX;
-//            int y = Block_Y(it.first) - blockY;
-//            it.second->write(reinterpret_cast<char *>(b) + o, Block_TO_LONG(x, y));
-//            o += 11;
-//        }
-//    }
-//
-//
-//    unsigned long len = 0;
-//    auto *deflated = Engine::Filesystem::compress(b, selectedBlocks * 11, &len);
-//
-//    size_t b64len = 0;
-//    base64_encode(reinterpret_cast<const char *>(deflated), len, nullptr, &b64len, 0);
-//    auto *buf = new char[b64len + 1];
-//    base64_encode(reinterpret_cast<const char *>(deflated), len, buf, &b64len, 0);
-//    buf[b64len] = 0;
-//    glfwSetClipboardString(window->getId(), buf);
-//
-//    if (notify) {
-//        ImGuiToast toast(ImGuiToastType_Success, 2000);
-//        toast.set_title("%d blocks copied", selectedBlocks);
-//        ImGui::InsertNotification(toast);
-//    }
+
+    unsigned long len = 0;
+    auto *deflated = Engine::Filesystem::compress(b, selectedBlocks * 11, &len);
+
+    auto *buf = new char[len * 3];
+    size_t b64len = 0;
+    base64_encode(reinterpret_cast<const char *>(deflated), len, buf, &b64len, 0);
+    buf[b64len] = 0;
+    glfwSetClipboardString(window->getId(), buf);
+    delete[] buf;
+
+    if (notify) {
+        ImGuiToast toast(ImGuiToastType_Success, 2000);
+        toast.set_title("%d blocks copied", selectedBlocks);
+        ImGui::InsertNotification(toast);
+    }
 }
 
 void BlockManager::cut(int blockX, int blockY) {
@@ -301,46 +299,43 @@ void BlockManager::cut(int blockX, int blockY) {
 }
 
 void BlockManager::paste(int blockX, int blockY) {
-    return; //TODO: Fix base64
+    const char *importString = glfwGetClipboardString(window->getId());
 
-//    const char *importString = glfwGetClipboardString(window->getId());
-//
-//    size_t written = 0;
-//    base64_decode(importString, strlen(importString), nullptr, &written, 0);
-//    auto *bytes = new char[written];
-//    base64_decode(importString, strlen(importString), bytes, &written, 0);
-//
-//    unsigned long count;
-//    if (written > 4) {
-//        unsigned long length = 0;
-//        auto *inflated = Engine::Filesystem::decompress(reinterpret_cast<unsigned char *>(bytes), written, &length);
-//
-//        if (length % 11 == 0) {
-//            count = length / 11UL;
-//            long long pos = 0;
-//            for (unsigned long i = 0; i < count; i++) {
-//                auto *block = new Block(reinterpret_cast<char *>(inflated) + i * 11UL, types, &pos);
-//                int x = Block_X(pos) + blockX;
-//                int y = Block_Y(pos) + blockY;
-//                blocks[Block_TO_LONG(x, y)] = block;
-//                block->updateMvp(x, y);
-//            }
-//        } else {
-//            count = -1;
-//        }
-//    } else {
-//        count = -1;
-//    }
-//
-//    ImGuiToast toast(0);
-//    if (count != -1) {
-//        toast.set_type(ImGuiToastType_Success);
-//        toast.set_title("%d blocks pasted", count);
-//    } else {
-//        toast.set_type(ImGuiToastType_Error);
-//        toast.set_title("Failed to paste");
-//    }
-//    ImGui::InsertNotification(toast);
+    auto *bytes = new char[strlen(importString) * 2];
+    size_t written = 0;
+    base64_decode(importString, strlen(importString), bytes, &written, 0);
+
+    unsigned long count;
+    if (written > 4) {
+        unsigned long length = 0;
+        auto *inflated = Engine::Filesystem::decompress(reinterpret_cast<unsigned char *>(bytes), written, &length);
+
+        if (length % 11 == 0) {
+            count = length / 11UL;
+            long long pos = 0;
+            for (unsigned long i = 0; i < count; i++) {
+                auto *block = new Block(reinterpret_cast<char *>(inflated) + i * 11UL, types, &pos);
+                int x = Block_X(pos) + blockX;
+                int y = Block_Y(pos) + blockY;
+                blocks[Block_TO_LONG(x, y)] = block;
+                block->updateMvp(x, y);
+            }
+        } else {
+            count = -1;
+        }
+    } else {
+        count = -1;
+    }
+
+    ImGuiToast toast(0);
+    if (count != -1) {
+        toast.set_type(ImGuiToastType_Success);
+        toast.set_title("%d blocks pasted", count);
+    } else {
+        toast.set_type(ImGuiToastType_Error);
+        toast.set_title("Failed to paste");
+    }
+    ImGui::InsertNotification(toast);
 }
 
 void BlockManager::select_all() {
