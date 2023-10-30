@@ -28,7 +28,7 @@ public:
 
 class BlockManager {
 private:
-    std::vector<BlockInfo> info;
+    BlockInfo *info;
 
     void thread_tick();
 

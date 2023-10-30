@@ -329,15 +329,15 @@ int main() {
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Help")) {
-                        if (ImGui::MenuItem(ICON_FA_TERMINAL " Console", "Ctrl + Shift + P"))
+                        if (ImGui::MenuItem("Console", "Ctrl + Shift + P"))
                             Engine::HUD::show_command_palette ^= 1;
-                        if (ImGui::MenuItem(ICON_FA_LINK "  Itch.io"))
+                        if (ImGui::MenuItem("Itch.io"))
                             ShellExecute(nullptr, nullptr, "https://kewldan.itch.io/logical-system", nullptr, nullptr,
                                          SW_SHOW);
-                        if (ImGui::MenuItem(ICON_FA_LINK "  Source code"))
+                        if (ImGui::MenuItem("Source code"))
                             ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                          nullptr, SW_SHOW);
-                        static const std::string versionString = std::format("Version: 2.0.8 ({})", __DATE__);
+                        static const std::string versionString = std::format("Version: 2.0.9 ({})", __DATE__);
                         static const char *version = versionString.c_str();
                         ImGui::MenuItem(version, nullptr, nullptr, false);
                         ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);

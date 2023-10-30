@@ -39,6 +39,8 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
     blocks.reserve(1024 * 1024);
     blocks.max_load_factor(0.25f);
 
+    info = new BlockInfo[BLOCK_BATCHING];
+
     glGenVertexArrays(1, &VAO);
     glGenBuffers(2, VBO);
     glBindVertexArray(VAO);
@@ -243,7 +245,7 @@ void BlockManager::thread_tick() {
     auto lastUpdate = std::chrono::system_clock::now();
     while (!glfwWindowShouldClose(window->getId())) {
         auto n = std::chrono::system_clock::now();
-        if (n >= lastUpdate + std::chrono::milliseconds(static_cast<int>(floor(1000.f / (float) TPS)))) {
+        if (n >= lastUpdate + std::chrono::milliseconds(static_cast<int>(floor(1000.f / (float) TPS))) && simulate) {
             update();
             tickTime = static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::system_clock::now() - n).count());
@@ -393,17 +395,32 @@ void BlockManager::load_from_memory(Engine::Camera2D *camera, const char *data, 
 }
 
 void BlockManager::draw(Engine::Camera2D *camera) {
-    int j = 0;
+    int j = 0, x, y;
+    int LB = (int) camera->position.x + (int) camera->left - 16;
+    int RB = (int) camera->position.x + (int) camera->right + 16;
+    int BB = (int) camera->position.y + (int) camera->bottom - 16;
+    int TB = (int) camera->position.y + (int) camera->top + 16;
 
-    size_t left = blocks.size();
-    size_t index = 0;
-
-    while (left > 0) {
+    for (auto &it: blocks) {
+        x = Block_X(it.first) << 5;
+        y = Block_Y(it.first) << 5;
+        if (x > LB && x < RB && y > BB && y < TB) {
+            info[j] = BlockInfo(it.second->type->id, it.second->active,
+                                it.second->selected,
+                                it.second->getMVP());
+            j++;
+        }
+        if (j == BLOCK_BATCHING) {
+            glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * j, info);
+            glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, j);
+            j = 0;
+        }
+    }
+    if (j > 0) {
         glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * j, info.data() + index);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * j, info);
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, j);
-        index += left > BLOCK_BATCHING ? BLOCK_BATCHING : left;
-        left -= left > BLOCK_BATCHING ? BLOCK_BATCHING : left;
     }
 }
 
