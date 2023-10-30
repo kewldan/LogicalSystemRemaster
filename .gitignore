@@ -34,7 +34,6 @@
 .vs/
 build/
 *.log
-*.exe
 *.pdb
 libraries/
 out/

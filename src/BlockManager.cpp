@@ -6,11 +6,10 @@
 #include <nlohmann/json.hpp>
 
 BlockManager::BlockManager(Engine::Window *window, const float vertices[], int count) {
-    ASSERT("Window is nullptr", window != nullptr);
-    ASSERT("Vertices is nullptr", vertices != nullptr);
-    ASSERT("Count must be > 0", count > 0);
+    assert(window != nullptr);
+    assert(vertices != nullptr);
+    assert(count > 0);
     glGenTextures(1, &atlas);
-    ASSERT("Atlas invalid", atlas > 0);
 
     glBindTexture(GL_TEXTURE_2D_ARRAY, atlas);
 
@@ -72,7 +71,6 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
 
     const BlockActivationFunction defaultActivationFunction = [](unsigned char c) { return c > 0; };
 
-    types = new BlockType[15];
     types[0] = BlockType(0x0, defaultActivationFunction); // Straight
     types[1] = BlockType(0x1, defaultActivationFunction); // Right
     types[2] = BlockType(0x2, defaultActivationFunction); // Left
@@ -93,7 +91,7 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
 }
 
 void BlockManager::set(int x, int y, Block *block) {
-    ASSERT("Block is nullptr", block != nullptr);
+    assert(block != nullptr);
     blocks[Block_TO_LONG(x, y)] = block;
 }
 
@@ -115,7 +113,7 @@ void BlockManager::erase(int x, int y) {
 }
 
 void BlockManager::rotate(int x, int y, BlockRotation rotation) {
-    ASSERT("Rotation invalid", rotation >= 0 && rotation <= 3);
+    assert(rotation >= 0 && rotation <= 3);
     Block *block = get(x, y);
     block->rotation = rotation;
     block->updateMvp(x, y);
@@ -128,7 +126,6 @@ int BlockManager::length() {
 void BlockManager::update() {
     std::lock_guard<std::mutex> lock(mutex);
     for (auto &it: blocks) {
-        ASSERT("Block in map is nullptr", it.second != nullptr);
         Block *block = it.second;
         int x = Block_X(it.first);
         int y = Block_Y(it.first);
@@ -188,21 +185,29 @@ void BlockManager::setActive(int x, int y) {
 }
 
 void BlockManager::setActive(int x, int y, BlockRotation rotation, int l) {
-    ASSERT("Block length must be > 0", l > 0);
-    if (rotation == 0) {
-        setActive(x, y + l);
-    } else if (rotation == 1) {
-        setActive(x + l, y);
-    } else if (rotation == 2) {
-        setActive(x, y - l);
-    } else if (rotation == 3) {
-        setActive(x - l, y);
+    assert(l > 0);
+
+    switch (rotation) {
+        case 0:
+            setActive(x, y + l);
+            break;
+        case 1:
+            setActive(x + l, y);
+            break;
+        case 2:
+            setActive(x, y - l);
+            break;
+        case 3:
+            setActive(x - l, y);
+            break;
+        default:
+            break;
     }
 }
 
 bool BlockManager::save(Engine::Camera2D *camera, const char *path) {
     if (Engine::Filesystem::exists(path)) return false;
-    ASSERT("Path is nullptr", path != nullptr);
+    assert(path != nullptr);
     nlohmann::json saveFile;
     saveFile["camera"]["position"]["x"] = camera->position.x;
     saveFile["camera"]["position"]["y"] = camera->position.y;
@@ -232,7 +237,7 @@ inline bool ends_with(const char *value, const char *ending) {
 }
 
 bool BlockManager::load(Engine::Camera2D *camera, const char *path) {
-    ASSERT("Path is nullptr", path != nullptr);
+    assert(path != nullptr);
     int size = 0;
     const char *bin = Engine::Filesystem::readFile(path, &size);
     if (!bin) return false;
@@ -258,33 +263,33 @@ void BlockManager::thread_tick() {
 void BlockManager::copy(int blockX, int blockY, bool notify) {
     return; //TODO: Fix base64
 
-    auto *b = (unsigned char *) malloc(selectedBlocks * 11);
-    int o = 0;
-    for (auto &it: blocks) {
-        if (it.second->selected) {
-            int x = Block_X(it.first) - blockX;
-            int y = Block_Y(it.first) - blockY;
-            it.second->write(reinterpret_cast<char *>(b) + o, Block_TO_LONG(x, y));
-            o += 11;
-        }
-    }
-
-
-    unsigned long len = 0;
-    auto *deflated = Engine::Filesystem::compress(b, selectedBlocks * 11, &len);
-
-    size_t b64len = 0;
-    base64_encode(reinterpret_cast<const char *>(deflated), len, nullptr, &b64len, 0);
-    auto *buf = new char[b64len + 1];
-    base64_encode(reinterpret_cast<const char *>(deflated), len, buf, &b64len, 0);
-    buf[b64len] = 0;
-    glfwSetClipboardString(window->getId(), buf);
-
-    if (notify) {
-        ImGuiToast toast(ImGuiToastType_Success, 2000);
-        toast.set_title("%d blocks copied", selectedBlocks);
-        ImGui::InsertNotification(toast);
-    }
+//    auto *b = (unsigned char *) malloc(selectedBlocks * 11);
+//    int o = 0;
+//    for (auto &it: blocks) {
+//        if (it.second->selected) {
+//            int x = Block_X(it.first) - blockX;
+//            int y = Block_Y(it.first) - blockY;
+//            it.second->write(reinterpret_cast<char *>(b) + o, Block_TO_LONG(x, y));
+//            o += 11;
+//        }
+//    }
+//
+//
+//    unsigned long len = 0;
+//    auto *deflated = Engine::Filesystem::compress(b, selectedBlocks * 11, &len);
+//
+//    size_t b64len = 0;
+//    base64_encode(reinterpret_cast<const char *>(deflated), len, nullptr, &b64len, 0);
+//    auto *buf = new char[b64len + 1];
+//    base64_encode(reinterpret_cast<const char *>(deflated), len, buf, &b64len, 0);
+//    buf[b64len] = 0;
+//    glfwSetClipboardString(window->getId(), buf);
+//
+//    if (notify) {
+//        ImGuiToast toast(ImGuiToastType_Success, 2000);
+//        toast.set_title("%d blocks copied", selectedBlocks);
+//        ImGui::InsertNotification(toast);
+//    }
 }
 
 void BlockManager::cut(int blockX, int blockY) {
@@ -298,44 +303,44 @@ void BlockManager::cut(int blockX, int blockY) {
 void BlockManager::paste(int blockX, int blockY) {
     return; //TODO: Fix base64
 
-    const char *importString = glfwGetClipboardString(window->getId());
-
-    size_t written = 0;
-    base64_decode(importString, strlen(importString), nullptr, &written, 0);
-    auto *bytes = new char[written];
-    base64_decode(importString, strlen(importString), bytes, &written, 0);
-
-    unsigned long count;
-    if (written > 4) {
-        unsigned long length = 0;
-        auto *inflated = Engine::Filesystem::decompress(reinterpret_cast<unsigned char *>(bytes), written, &length);
-
-        if (length % 11 == 0) {
-            count = length / 11UL;
-            long long pos = 0;
-            for (unsigned long i = 0; i < count; i++) {
-                auto *block = new Block(reinterpret_cast<char *>(inflated) + i * 11UL, types, &pos);
-                int x = Block_X(pos) + blockX;
-                int y = Block_Y(pos) + blockY;
-                blocks[Block_TO_LONG(x, y)] = block;
-                block->updateMvp(x, y);
-            }
-        } else {
-            count = -1;
-        }
-    } else {
-        count = -1;
-    }
-
-    ImGuiToast toast(0);
-    if (count != -1) {
-        toast.set_type(ImGuiToastType_Success);
-        toast.set_title("%d blocks pasted", count);
-    } else {
-        toast.set_type(ImGuiToastType_Error);
-        toast.set_title("Failed to paste");
-    }
-    ImGui::InsertNotification(toast);
+//    const char *importString = glfwGetClipboardString(window->getId());
+//
+//    size_t written = 0;
+//    base64_decode(importString, strlen(importString), nullptr, &written, 0);
+//    auto *bytes = new char[written];
+//    base64_decode(importString, strlen(importString), bytes, &written, 0);
+//
+//    unsigned long count;
+//    if (written > 4) {
+//        unsigned long length = 0;
+//        auto *inflated = Engine::Filesystem::decompress(reinterpret_cast<unsigned char *>(bytes), written, &length);
+//
+//        if (length % 11 == 0) {
+//            count = length / 11UL;
+//            long long pos = 0;
+//            for (unsigned long i = 0; i < count; i++) {
+//                auto *block = new Block(reinterpret_cast<char *>(inflated) + i * 11UL, types, &pos);
+//                int x = Block_X(pos) + blockX;
+//                int y = Block_Y(pos) + blockY;
+//                blocks[Block_TO_LONG(x, y)] = block;
+//                block->updateMvp(x, y);
+//            }
+//        } else {
+//            count = -1;
+//        }
+//    } else {
+//        count = -1;
+//    }
+//
+//    ImGuiToast toast(0);
+//    if (count != -1) {
+//        toast.set_type(ImGuiToastType_Success);
+//        toast.set_title("%d blocks pasted", count);
+//    } else {
+//        toast.set_type(ImGuiToastType_Error);
+//        toast.set_title("Failed to paste");
+//    }
+//    ImGui::InsertNotification(toast);
 }
 
 void BlockManager::select_all() {
@@ -356,7 +361,7 @@ void BlockManager::delete_selected() {
 }
 
 void BlockManager::load_from_memory(Engine::Camera2D *camera, const char *data, int length, bool is_bson) {
-    ASSERT("Data is nullptr", data != nullptr);
+    assert(data != nullptr);
     blocks.clear();
 
     float z = 0.f;
@@ -425,8 +430,8 @@ void BlockManager::draw(Engine::Camera2D *camera) {
 }
 
 void BlockManager::set(int x, int y) {
-    auto *block = new Block(x, y, &types[playerInput.currentBlock],
-                            static_cast<BlockRotation>(playerInput.currentRotation));
+    auto *block = new Block(x, y, &types[currentBlock],
+                            static_cast<BlockRotation>(currentRotation));
     set(x, y, block);
 }
 

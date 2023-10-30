@@ -35,17 +35,15 @@ private:
 public:
     unsigned int atlas{}, VAO{}, VBO[2];
     Blocks blocks;
-    BlockType *types;
+    BlockType types[15];
     bool simulate = true;
     int TPS, selectedBlocks{};
     double tickTime{};
     std::thread thread;
     std::mutex mutex;
     Engine::Window *window;
-    struct PlayerInput {
-        int currentBlock;
-        int currentRotation;
-    } playerInput{};
+    int currentBlock = 0;
+    int currentRotation = 0;
 
     BlockManager(Engine::Window *window, const float vertices[], int count);
 
