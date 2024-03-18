@@ -52,7 +52,7 @@ float map(float value, float max1, float min2, float max2) {
     return min2 + value * (max2 - min2) / max1;
 }
 
-int main() {
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
     Engine::Window::init();
     Engine::Window window(1280, 720, "Logical system");
     window.setIcon("data/textures/favicon.png");
@@ -310,12 +310,6 @@ int main() {
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Examples")) {
-                        if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " Blocks overview"))
-                            blocks.load_example(&camera, "data/examples/BlocksSample.bson");
-                        if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " 1 Byte RAM"))
-                            blocks.load_example(&camera, "data/examples/MemorySample.bson");
-                        if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " 4 Bit adder"))
-                            blocks.load_example(&camera, "data/examples/AdderSample.bson");
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Graphics")) {

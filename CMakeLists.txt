@@ -1,11 +1,11 @@
 ﻿cmake_minimum_required(VERSION 3.23)
 project(LogicalSystem
         HOMEPAGE_URL https://kewldan.itch.io/logical-system
-        VERSION 2.0.8
+        VERSION 2.0.9
         LANGUAGES CXX
 )
 
-set(ENGINE_DIR "E:\\Projects\\engine")
+set(ENGINE_DIR "E:\\Projects\\Engine")
 
 add_definitions(-DBLOCK_BATCHING=8192)
 
@@ -41,7 +41,7 @@ else ()
     )
 endif ()
 
-add_executable(LogicalSystem ${PROJECT_SRCS} resources.rc)
+add_executable(LogicalSystem WIN32 ${PROJECT_SRCS} resources.rc)
 
 target_link_libraries(LogicalSystem PRIVATE Engine glad::glad glfw glm::glm plog::plog ZLIB::ZLIB aklomp::base64 imgui::imgui unofficial::nativefiledialog::nfd)
 target_include_directories(LogicalSystem PRIVATE ${Stb_INCLUDE_DIR})
