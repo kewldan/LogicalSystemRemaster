@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <climits>
 #include <imgui_notify.h>
 #include <libbase64.h>
 
@@ -118,6 +119,7 @@ void BlockManager::undo() {
     applyChanges(undoStack.back(), false);
     redoStack.push_back(std::move(undoStack.back()));
     undoStack.pop_back();
+    chunkIndex.rebuild(blocks);
     circuit.rebuild();
     dirty = true;
 }
@@ -127,6 +129,7 @@ void BlockManager::redo() {
     applyChanges(redoStack.back(), true);
     undoStack.push_back(std::move(redoStack.back()));
     redoStack.pop_back();
+    chunkIndex.rebuild(blocks);
     circuit.rebuild();
     dirty = true;
 }
@@ -144,6 +147,7 @@ void BlockManager::set(int x, int y, const Block &block) {
     auto it = blocks.find(key);
     record(key, it != blocks.end() ? &it->second : nullptr, &block);
     blocks[key] = block;
+    chunkIndex.insert(key);
     circuit.invalidate(x, y);
 }
 
@@ -166,6 +170,7 @@ void BlockManager::erase(int x, int y) {
     if (it == blocks.end()) return;
     record(key, &it->second, nullptr);
     blocks.erase(it);
+    chunkIndex.erase(key);
     circuit.invalidate(x, y);
 }
 
@@ -174,6 +179,7 @@ void BlockManager::clear() {
         record(it.first, &it.second, nullptr);
     }
     blocks.clear();
+    chunkIndex.rebuild(blocks);
     circuit.rebuild();
     commitUndo();
     selectedBlocks = 0;
@@ -251,6 +257,7 @@ bool BlockManager::load_from_memory(Engine::Camera2D *camera, const char *data, 
         return false;
     }
     blocks = std::move(loaded);
+    chunkIndex.rebuild(blocks);
     circuit.rebuild();
     clearHistory();
     selectedBlocks = 0;
@@ -369,29 +376,41 @@ void BlockManager::cut(int blockX, int blockY) {
     ImGui::InsertNotification(toast);
 }
 
-void BlockManager::paste(int blockX, int blockY) {
-    Blocks pasted;
-    long long count = blocksFromClipboard(window->getId(), pasted, blockX, blockY);
-
-    if (count > 0) {
-        for (auto &it: pasted) {
-            auto existing = blocks.find(it.first);
-            record(it.first, existing != blocks.end() ? &existing->second : nullptr, &it.second);
-            blocks[it.first] = it.second;
-        }
-        circuit.rebuild();
-        commitUndo();
-    }
-
-    ImGuiToast toast(0);
-    if (count >= 0) {
-        toast.set_type(ImGuiToastType_Success);
-        toast.set_title("%d blocks pasted", (int) count);
-    } else {
-        toast.set_type(ImGuiToastType_Error);
+void BlockManager::beginPaste() {
+    Blocks parsed;
+    long long count = blocksFromClipboard(window->getId(), parsed, 0, 0);
+    if (count <= 0) {
+        ImGuiToast toast(ImGuiToastType_Error, 2000);
         toast.set_title("Failed to paste");
+        ImGui::InsertNotification(toast);
+        return;
     }
+    pasteBuffer = std::move(parsed);
+    pasting = true;
+}
+
+void BlockManager::commitPaste(int blockX, int blockY) {
+    if (!pasting) return;
+    for (auto &it: pasteBuffer) {
+        long long key = Block_TO_LONG(Block_X(it.first) + blockX, Block_Y(it.first) + blockY);
+        auto existing = blocks.find(key);
+        record(key, existing != blocks.end() ? &existing->second : nullptr, &it.second);
+        blocks[key] = it.second;
+    }
+    chunkIndex.rebuild(blocks);
+    circuit.rebuild();
+    commitUndo();
+
+    ImGuiToast toast(ImGuiToastType_Success, 2000);
+    toast.set_title("%d blocks pasted", (int) pasteBuffer.size());
     ImGui::InsertNotification(toast);
+    pasting = false;
+    pasteBuffer.clear();
+}
+
+void BlockManager::cancelPaste() {
+    pasting = false;
+    pasteBuffer.clear();
 }
 
 void BlockManager::export_scheme() {
@@ -413,6 +432,7 @@ void BlockManager::import_scheme(Engine::Camera2D *camera) {
     ImGuiToast toast(0);
     if (count > 0) {
         blocks = std::move(imported);
+        chunkIndex.rebuild(blocks);
         circuit.rebuild();
         clearHistory();
         selectedBlocks = 0;
@@ -446,9 +466,75 @@ void BlockManager::delete_selected() {
             ++it;
         }
     }
+    chunkIndex.rebuild(blocks);
     circuit.rebuild();
     commitUndo();
     selectedBlocks = 0;
+}
+
+void BlockManager::deselect_all() {
+    for (auto &it: blocks) {
+        it.second.selected = false;
+    }
+    selectedBlocks = 0;
+}
+
+void BlockManager::move_selected(int dx, int dy) {
+    if (dx == 0 && dy == 0) return;
+    std::vector<std::pair<long long, Block>> moved;
+    for (auto it = blocks.begin(); it != blocks.end();) {
+        if (it->second.selected) {
+            moved.emplace_back(it->first, it->second);
+            record(it->first, &it->second, nullptr);
+            it = blocks.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    for (auto &entry: moved) {
+        long long key = Block_TO_LONG(Block_X(entry.first) + dx, Block_Y(entry.first) + dy);
+        auto existing = blocks.find(key);
+        record(key, existing != blocks.end() ? &existing->second : nullptr, &entry.second);
+        blocks[key] = entry.second;
+    }
+    chunkIndex.rebuild(blocks);
+    circuit.rebuild();
+    commitUndo();
+}
+
+void BlockManager::rotate_selected(int k) {
+    std::vector<std::pair<long long, Block>> rotated;
+    int minX = INT_MAX, maxX = INT_MIN, minY = INT_MAX, maxY = INT_MIN;
+    for (auto &it: blocks) {
+        if (!it.second.selected) continue;
+        rotated.emplace_back(it.first, it.second);
+        minX = std::min(minX, Block_X(it.first));
+        maxX = std::max(maxX, Block_X(it.first));
+        minY = std::min(minY, Block_Y(it.first));
+        maxY = std::max(maxY, Block_Y(it.first));
+    }
+    if (rotated.empty()) return;
+    int cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+
+    for (auto &entry: rotated) {
+        record(entry.first, &entry.second, nullptr);
+        blocks.erase(entry.first);
+    }
+    for (auto &entry: rotated) {
+        int rx = Block_X(entry.first) - cx;
+        int ry = Block_Y(entry.first) - cy;
+        int nx = k > 0 ? cx + ry : cx - ry;
+        int ny = k > 0 ? cy - rx : cy + rx;
+        Block block = entry.second;
+        block.rotation = rotateBlock(block.rotation, k);
+        long long key = Block_TO_LONG(nx, ny);
+        auto existing = blocks.find(key);
+        record(key, existing != blocks.end() ? &existing->second : nullptr, &block);
+        blocks[key] = block;
+    }
+    chunkIndex.rebuild(blocks);
+    circuit.rebuild();
+    commitUndo();
 }
 
 void BlockManager::draw(Engine::Camera2D *camera) {
@@ -458,26 +544,62 @@ void BlockManager::draw(Engine::Camera2D *camera) {
     int BB = (int) camera->position.y + (int) camera->bottom - 16;
     int TB = (int) camera->position.y + (int) camera->top + 16;
 
-    for (auto &it: blocks) {
-        int x = Block_X(it.first);
-        int y = Block_Y(it.first);
-        int px = x << 5;
-        int py = y << 5;
-        if (px > LB && px < RB && py > BB && py < TB) {
-            const Block &block = it.second;
-            info[j] = BlockInfo(block.typeId, block.active, block.selected, block.rotation, x, y);
-            j++;
-        }
-        if (j == BLOCK_BATCHING) {
-            glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * j, info);
-            glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, j);
-            j = 0;
-        }
-    }
-    if (j > 0) {
+    auto flush = [&]() {
         glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
         glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * j, info);
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, j);
+        j = 0;
+    };
+
+    // walk only the chunks that overlap the view
+    chunkIndex.visit((LB >> 5) - 1, (BB >> 5) - 1, (RB >> 5) + 1, (TB >> 5) + 1, [&](long long key) {
+        int x = Block_X(key);
+        int y = Block_Y(key);
+        int px = x << 5;
+        int py = y << 5;
+        if (px > LB && px < RB && py > BB && py < TB) {
+            const Block &block = blocks.find(key)->second;
+            info[j] = BlockInfo(block.typeId, block.active, block.selected, block.rotation, x, y);
+            j++;
+            if (j == BLOCK_BATCHING) flush();
+        }
+    });
+    if (j > 0) flush();
+}
+
+void BlockManager::drawInstances(const std::vector<BlockInfo> &list) {
+    size_t offset = 0;
+    while (offset < list.size()) {
+        int batch = (int) std::min((size_t) BLOCK_BATCHING, list.size() - offset);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * batch, list.data() + offset);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, batch);
+        offset += batch;
     }
+}
+
+void BlockManager::drawGhost(int x, int y) {
+    std::vector<BlockInfo> one{BlockInfo(static_cast<BlockId>(currentBlock), false, false,
+                                         static_cast<BlockRotation>(currentRotation), x, y)};
+    drawInstances(one);
+}
+
+void BlockManager::drawPasteGhost(int blockX, int blockY) {
+    std::vector<BlockInfo> list;
+    list.reserve(pasteBuffer.size());
+    for (auto &it: pasteBuffer) {
+        list.emplace_back(it.second.typeId, it.second.active, false, it.second.rotation,
+                          Block_X(it.first) + blockX, Block_Y(it.first) + blockY);
+    }
+    drawInstances(list);
+}
+
+void BlockManager::drawSelectionGhost(int dx, int dy) {
+    std::vector<BlockInfo> list;
+    for (auto &it: blocks) {
+        if (!it.second.selected) continue;
+        list.emplace_back(it.second.typeId, it.second.active, true, it.second.rotation,
+                          Block_X(it.first) + dx, Block_Y(it.first) + dy);
+    }
+    drawInstances(list);
 }

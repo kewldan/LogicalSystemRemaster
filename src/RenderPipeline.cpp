@@ -127,6 +127,7 @@ void RenderPipeline::beginPass(Engine::Camera2D *camera, unsigned int atlas, uns
     gShader->upload("selectionColor", color);
     gShader->upload("ON", blockGlowColor);
     gShader->upload("OFF", blockDefaultColor);
+    gShader->upload("alpha", 1.f);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D_ARRAY, atlas);
     glBindVertexArray(blockVao);

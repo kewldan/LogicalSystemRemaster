@@ -4,6 +4,7 @@
 #include <vector>
 #include <Window.h>
 #include <Camera2D.h>
+#include "ChunkIndex.h"
 #include "Simulation.h"
 
 // Per-instance data uploaded to the GPU: packed state + grid coordinates.
@@ -30,12 +31,15 @@ struct UndoChange {
 class BlockManager {
 private:
     BlockInfo *info;
+    ChunkIndex chunkIndex;
     std::vector<std::vector<UndoChange>> undoStack, redoStack;
     std::vector<UndoChange> pendingChanges;
 
     void record(long long key, const Block *before, const Block *after);
 
     void applyChanges(const std::vector<UndoChange> &changes, bool forward);
+
+    void drawInstances(const std::vector<BlockInfo> &list);
 
 public:
     unsigned int atlas{}, VAO{}, VBO[2];
@@ -49,6 +53,8 @@ public:
     int currentRotation = 0;
     bool dirty = false;
     std::string currentFile;
+    Blocks pasteBuffer;
+    bool pasting = false;
 
     BlockManager(Engine::Window *window, const float vertices[], int count);
 
@@ -90,9 +96,25 @@ public:
 
     void copy(int blockX, int blockY, bool notify = true);
 
-    void paste(int blockX, int blockY);
+    void beginPaste();
+
+    void commitPaste(int blockX, int blockY);
+
+    void cancelPaste();
 
     void cut(int blockX, int blockY);
+
+    void move_selected(int dx, int dy);
+
+    void rotate_selected(int k);
+
+    void deselect_all();
+
+    void drawGhost(int x, int y);
+
+    void drawPasteGhost(int blockX, int blockY);
+
+    void drawSelectionGhost(int dx, int dy);
 
     void export_scheme();
 

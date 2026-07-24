@@ -44,4 +44,8 @@ public:
     void drawScreenQuad() const;
 
     void drawRectQuad() const;
+
+    [[nodiscard]] Engine::Shader *blockShader() const {
+        return gShader;
+    }
 };

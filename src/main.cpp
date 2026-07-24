@@ -6,11 +6,48 @@
 #include "Input.h"
 #include "nfd.h"
 #include <algorithm>
+#include <filesystem>
 #include <format>
+#include <fstream>
 #include <string>
+#include <nlohmann/json.hpp>
 
 bool vsync = true, hideUI = false;
 
+struct AppSettings {
+    int width = 1280, height = 720, tps = 8;
+    bool vsync = true, bloom = true;
+};
+
+static AppSettings loadSettings() {
+    AppSettings s;
+    try {
+        std::ifstream file("settings.json");
+        if (file.good()) {
+            nlohmann::json j = nlohmann::json::parse(file);
+            s.width = std::clamp(j.value("width", s.width), 640, 7680);
+            s.height = std::clamp(j.value("height", s.height), 480, 4320);
+            s.tps = std::clamp(j.value("tps", s.tps), 1, 256);
+            s.vsync = j.value("vsync", s.vsync);
+            s.bloom = j.value("bloom", s.bloom);
+        }
+    } catch (const std::exception &e) {
+        PLOGW << "settings.json is invalid: " << e.what();
+    }
+    return s;
+}
+
+static void saveSettings(const AppSettings &s) {
+    nlohmann::json j{
+            {"width",  s.width},
+            {"height", s.height},
+            {"tps",    s.tps},
+            {"vsync",  s.vsync},
+            {"bloom",  s.bloom}
+    };
+    std::ofstream file("settings.json");
+    file << j.dump(2);
+}
 
 void openLoadDialog(BlockManager &blocks, Engine::Camera2D *camera) {
     nfdchar_t *loadPath;
@@ -31,28 +68,38 @@ void openLoadDialog(BlockManager &blocks, Engine::Camera2D *camera) {
     }
 }
 
-void openSaveDialog(BlockManager &blocks, Engine::Camera2D *camera) {
-    nfdchar_t *savePath;
-    nfdresult_t saveResult = NFD_SaveDialog("bson;ls", nullptr, &savePath);
-
-    if (saveResult == NFD_OKAY) {
-        ImGuiToast toast(0);
-        if (blocks.save(camera, savePath)) {
-            toast.set_type(ImGuiToastType_Success);
-            toast.set_title("%s saved successfully", const_cast<const char *>(savePath));
-        } else {
-            toast.set_type(ImGuiToastType_Error);
-            toast.set_title("%s was not saved!", const_cast<const char *>(savePath));
-        }
-        ImGui::InsertNotification(toast);
-
+// Saves silently into the current file; shows the dialog only for a new
+// scheme or when forceDialog is set (Save As). Returns true when saved.
+bool saveScheme(BlockManager &blocks, Engine::Camera2D *camera, bool forceDialog) {
+    std::string path = blocks.currentFile;
+    if (forceDialog || path.empty()) {
+        nfdchar_t *savePath = nullptr;
+        if (NFD_SaveDialog("bson;ls", nullptr, &savePath) != NFD_OKAY) return false;
+        path = savePath;
         free(savePath);
+        if (!std::filesystem::path(path).has_extension()) path += ".bson";
     }
+
+    bool ok = blocks.save(camera, path.c_str());
+    ImGuiToast toast(0);
+    if (ok) {
+        toast.set_type(ImGuiToastType_Success);
+        toast.set_title("%s saved", path.c_str());
+    } else {
+        toast.set_type(ImGuiToastType_Error);
+        toast.set_title("%s was not saved!", path.c_str());
+    }
+    ImGui::InsertNotification(toast);
+    return ok;
 }
 
 float map(float value, float max1, float min2, float max2) {
     return min2 + value * (max2 - min2) / max1;
 }
+
+enum class PendingAction {
+    None, NewScheme, OpenScheme, Exit
+};
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
     // Resolve data/ (and logs) relative to the executable, not the caller's cwd
@@ -65,8 +112,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         }
     }
 
+    AppSettings settings = loadSettings();
+    vsync = settings.vsync;
+
     Engine::Window::init();
-    Engine::Window window(1280, 720, "Logical system");
+    Engine::Window window(settings.width, settings.height, "Logical system");
     window.setIcon("data/textures/favicon.png");
     Engine::Input input(window.getId());
     Engine::Camera2D camera(&window);
@@ -85,10 +135,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             window.width,
             window.height
     );
+    pipeline.bloom = settings.bloom;
     auto io = &ImGui::GetIO();
-
-    char saveFilename[256];
-    memset(saveFilename, 0, 256);
 
     ImFontConfig font_cfg;
     font_cfg.FontDataOwnedByAtlas = false;
@@ -114,10 +162,56 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 #endif
 
     BlockManager blocks(&window, quadVertices, (int) sizeof(quadVertices));
+    blocks.TPS = settings.tps;
 
     int blockX, blockY;
+    bool running = true;
+    PendingAction pending = PendingAction::None;
+    bool painting = false, movingSelection = false;
+    int lastPaintX = 0, lastPaintY = 0, moveStartX = 0, moveStartY = 0;
 
-    do {
+    auto executeAction = [&](PendingAction action) {
+        switch (action) {
+            case PendingAction::NewScheme:
+                blocks.clear();
+                break;
+            case PendingAction::OpenScheme:
+                openLoadDialog(blocks, &camera);
+                break;
+            case PendingAction::Exit:
+                running = false;
+                break;
+            default:
+                break;
+        }
+    };
+    auto request = [&](PendingAction action) {
+        if (blocks.dirty) {
+            pending = action;
+        } else {
+            executeAction(action);
+        }
+    };
+
+    // Draws straight wires along an orthogonal path (x first, then y),
+    // turning each previous wire toward the freshly placed one.
+    auto paintWire = [&](int fromX, int fromY, int toX, int toY) {
+        int x = fromX, y = fromY;
+        while (x != toX || y != toY) {
+            int dx = x != toX ? (toX > x ? 1 : -1) : 0;
+            int dy = dx == 0 ? (toY > y ? 1 : -1) : 0;
+            BlockRotation dir = dx == 1 ? 1 : dx == -1 ? 3 : dy == 1 ? 0 : 2;
+            Block *prev = blocks.get(x, y);
+            if (prev && prev->typeId == 0) blocks.rotate(x, y, dir);
+            x += dx;
+            y += dy;
+            if (!blocks.has(x, y)) {
+                blocks.set(x, y, Block(0, dir));
+            }
+        }
+    };
+
+    while (running) {
         if (window.isResized()) {
             pipeline.resize(window.width, window.height);
         }
@@ -149,15 +243,41 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         blockY = (int) floorf((((float) window.height - cursorY) + camera.position.y) / 32.f +
                               0.5f);
 
-        pipeline.beginPass(&camera, blocks.atlas, blocks.VAO, [&blocks, &camera]() { blocks.draw(&camera); });
+        bool showGhost = !io->WantCaptureMouse && !hideUI && !blocks.pasting && !movingSelection &&
+                         !input.isDragging() && !blocks.has(blockX, blockY);
+
+        pipeline.beginPass(&camera, blocks.atlas, blocks.VAO, [&]() {
+            blocks.draw(&camera);
+            Engine::Shader *shader = pipeline.blockShader();
+            if (blocks.pasting) {
+                shader->upload("alpha", 0.5f);
+                blocks.drawPasteGhost(blockX, blockY);
+                shader->upload("alpha", 1.f);
+            } else if (movingSelection) {
+                shader->upload("alpha", 0.5f);
+                blocks.drawSelectionGhost(blockX - moveStartX, blockY - moveStartY);
+                shader->upload("alpha", 1.f);
+            } else if (showGhost) {
+                shader->upload("alpha", 0.45f);
+                blocks.drawGhost(blockX, blockY);
+                shader->upload("alpha", 1.f);
+            }
+        });
 
         if (!io->WantCaptureKeyboard) {
             for (int i = 0; i < 10; i++) {
                 if (input.isKeyJustPressed(GLFW_KEY_0 + i)) {
                     blocks.currentBlock = !i ? 9 : i - 1;
                     blocks.currentBlock += 10 * input.isKeyPressed(GLFW_KEY_LEFT_SHIFT);
-                    blocks.currentBlock = std::min(blocks.currentBlock, 14);
+                    blocks.currentBlock = std::min(blocks.currentBlock, (int) BLOCK_TYPE_COUNT - 1);
                     break;
+                }
+            }
+            if (input.isKeyJustPressed(GLFW_KEY_ESCAPE)) {
+                if (blocks.pasting) {
+                    blocks.cancelPaste();
+                } else {
+                    blocks.deselect_all();
                 }
             }
             if (input.isKeyJustPressed(GLFW_KEY_F1)) {
@@ -183,18 +303,22 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                 blocks.commitUndo();
             }
             if (input.isKeyJustPressed(GLFW_KEY_R)) {
-                blocks.currentRotation = rotateBlock(blocks.currentRotation,
-                                                     input.isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1 : 1);
+                if (blocks.selectedBlocks > 0) {
+                    blocks.rotate_selected(input.isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1 : 1);
+                } else {
+                    blocks.currentRotation = rotateBlock(blocks.currentRotation,
+                                                         input.isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? -1 : 1);
+                }
             }
             if (input.isKeyJustPressed(GLFW_KEY_DELETE)) {
                 blocks.delete_selected();
             }
             if (input.isKeyPressed(GLFW_KEY_LEFT_CONTROL)) {
                 if (input.isKeyJustPressed(GLFW_KEY_S)) {
-                    openSaveDialog(blocks, &camera);
+                    saveScheme(blocks, &camera, input.isKeyPressed(GLFW_KEY_LEFT_SHIFT));
                 }
                 if (input.isKeyJustPressed(GLFW_KEY_O)) {
-                    openLoadDialog(blocks, &camera);
+                    request(PendingAction::OpenScheme);
                 }
                 if (input.isKeyJustPressed(GLFW_KEY_X)) {
                     blocks.cut(blockX, blockY);
@@ -203,13 +327,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                     blocks.copy(blockX, blockY);
                 }
                 if (input.isKeyJustPressed(GLFW_KEY_V)) {
-                    blocks.paste(blockX, blockY);
+                    blocks.beginPaste();
                 }
                 if (input.isKeyJustPressed(GLFW_KEY_A)) {
                     blocks.select_all();
                 }
                 if (input.isKeyJustPressed(GLFW_KEY_N)) {
-                    blocks.clear();
+                    request(PendingAction::NewScheme);
                 }
                 if (input.isKeyJustPressed(GLFW_KEY_Z)) {
                     if (input.isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
@@ -251,20 +375,36 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                         blocks.currentRotation = picked->rotation;
                     }
                 }
-                if (!input.isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
+                if (blocks.pasting) {
+                    if (input.isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_LEFT)) {
+                        blocks.commitPaste(blockX, blockY);
+                    } else if (input.isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_RIGHT)) {
+                        blocks.cancelPaste();
+                    }
+                } else if (!input.isKeyPressed(GLFW_KEY_LEFT_SHIFT) && !movingSelection) {
                     Block *block = blocks.get(blockX, blockY);
                     if (block) {
                         if (input.isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_LEFT)) {
-                            if (block->typeId == BLOCK_SWITCH) {
+                            if (block->selected && blocks.selectedBlocks > 0) {
+                                movingSelection = true;
+                                moveStartX = blockX;
+                                moveStartY = blockY;
+                            } else if (block->typeId == BLOCK_SWITCH || block->typeId == BLOCK_BUTTON) {
                                 blocks.toggle(blockX, blockY);
                             } else {
                                 blocks.rotate(blockX, blockY, rotateBlock(block->rotation, 1));
                             }
                         }
                     } else if (input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
-                        if (!blocks.has(blockX, blockY)) {
+                        if (painting && blocks.currentBlock == 0 &&
+                            (lastPaintX != blockX || lastPaintY != blockY)) {
+                            paintWire(lastPaintX, lastPaintY, blockX, blockY);
+                        } else {
                             blocks.set(blockX, blockY);
                         }
+                        painting = true;
+                        lastPaintX = blockX;
+                        lastPaintY = blockY;
                     }
                     if (input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT)) {
                         blocks.erase(blockX, blockY);
@@ -274,6 +414,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
             if (input.isMouseButtonJustReleased(GLFW_MOUSE_BUTTON_LEFT) ||
                 input.isMouseButtonJustReleased(GLFW_MOUSE_BUTTON_RIGHT)) {
+                if (movingSelection) {
+                    blocks.move_selected(blockX - moveStartX, blockY - moveStartY);
+                    movingSelection = false;
+                }
+                painting = false;
                 blocks.commitUndo();
             }
         }
@@ -320,6 +465,39 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         }
 
         Engine::HUD::begin();
+
+        if (pending != PendingAction::None && !ImGui::IsPopupOpen("Unsaved changes")) {
+            ImGui::OpenPopup("Unsaved changes");
+        }
+        ImGui::SetNextWindowPos(ImVec2((float) window.width * 0.5f, (float) window.height * 0.5f),
+                                ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        if (ImGui::BeginPopupModal("Unsaved changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("The current scheme has unsaved changes.");
+            ImGui::Spacing();
+            if (ImGui::Button(ICON_FA_FLOPPY_DISK " Save")) {
+                if (saveScheme(blocks, &camera, false)) {
+                    PendingAction action = pending;
+                    pending = PendingAction::None;
+                    ImGui::CloseCurrentPopup();
+                    executeAction(action);
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Don't save")) {
+                PendingAction action = pending;
+                pending = PendingAction::None;
+                blocks.dirty = false; // user chose to discard
+                ImGui::CloseCurrentPopup();
+                executeAction(action);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel")) {
+                pending = PendingAction::None;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+
         if (!hideUI) {
             ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Once);
             ImGui::SetNextWindowBgAlpha(0.f);
@@ -338,11 +516,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                 if (ImGui::BeginMenuBar()) {
                     if (ImGui::BeginMenu("File")) {
                         if (ImGui::MenuItem(ICON_FA_FILE "  New", "Ctrl + N"))
-                            blocks.clear();
+                            request(PendingAction::NewScheme);
                         if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " Open", "Ctrl + O"))
-                            openLoadDialog(blocks, &camera);
+                            request(PendingAction::OpenScheme);
                         if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK "  Save", "Ctrl + S"))
-                            openSaveDialog(blocks, &camera);
+                            saveScheme(blocks, &camera, false);
+                        if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK "  Save As...", "Ctrl + Shift + S"))
+                            saveScheme(blocks, &camera, true);
                         ImGui::Separator();
                         if (ImGui::MenuItem(ICON_FA_FILE_EXPORT " Export to clipboard"))
                             blocks.export_scheme();
@@ -359,7 +539,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                         if (ImGui::MenuItem(ICON_FA_COPY " Copy", "Ctrl + C"))
                             blocks.copy(blockX, blockY);
                         if (ImGui::MenuItem(ICON_FA_PASTE " Paste", "Ctrl + V"))
-                            blocks.paste(blockX, blockY);
+                            blocks.beginPaste();
                         if (ImGui::MenuItem(ICON_FA_HAND_SCISSORS " Cut", "Ctrl + X"))
                             blocks.cut(blockX, blockY);
                         if (ImGui::MenuItem(ICON_FA_SQUARE_CHECK " Select all", "Ctrl + A"))
@@ -377,6 +557,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                             blocks.load_example(&camera, "data/examples/rs-latch.bson", "RS latch");
                         if (ImGui::MenuItem("Full adder"))
                             blocks.load_example(&camera, "data/examples/full-adder.bson", "Full adder");
+                        if (ImGui::MenuItem("4-bit adder"))
+                            blocks.load_example(&camera, "data/examples/adder-4bit.bson", "4-bit adder");
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Graphics")) {
@@ -412,10 +594,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                     ImGui::EndTooltip();
                 }
                 ImGui::Combo("Block", &blocks.currentBlock,
-                             "Wire straight\0Wire angled right\0Wire angled left\0Wire T\0Wire cross\0Wire 2\0Wire 3\0NOT\0AND\0NAND\0XOR\0NXOR\0Switch\0Clock\0Lamp\0");
+                             "Wire straight\0Wire angled right\0Wire angled left\0Wire T\0Wire cross\0Wire 2\0Wire 3\0NOT\0AND\0NAND\0XOR\0NXOR\0Switch\0Clock\0Lamp\0Button\0");
                 if (ImGui::IsItemHovered()) {
                     ImGui::BeginTooltip();
-                    ImGui::Text("Use 0-9 for 0-9 elements\nand SHIFT for 10-14 elements");
+                    ImGui::Text("Use 0-9 for 0-9 elements\nand SHIFT for 10-15 elements");
                     ImGui::EndTooltip();
                 }
                 ImGui::Combo("Rotation", &blocks.currentRotation, "Up\0Right\0Down\0Left\0");
@@ -438,7 +620,24 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             window.setTitle(title.c_str());
             lastTitle = title;
         }
-    } while (window.update());
+
+        if (!window.update()) {
+            if (blocks.dirty) {
+                glfwSetWindowShouldClose(window.getId(), GLFW_FALSE);
+                if (pending == PendingAction::None) pending = PendingAction::Exit;
+            } else {
+                running = false;
+            }
+        }
+    }
+
+    settings.width = window.width;
+    settings.height = window.height;
+    settings.tps = blocks.TPS;
+    settings.vsync = vsync;
+    settings.bloom = pipeline.bloom;
+    saveSettings(settings);
+
     Engine::HUD::destroy();
     return 0;
 }

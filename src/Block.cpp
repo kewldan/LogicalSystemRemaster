@@ -26,6 +26,7 @@ bool isBlockActive(BlockId id, BlockConnectionCount connections) {
         case 11: // NXOR
             return connections % 2 == 0;
         case BLOCK_SWITCH:
+        case BLOCK_BUTTON:
             return false;
         case BLOCK_CLOCK:
             return connections == 0;

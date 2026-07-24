@@ -65,6 +65,7 @@ void Circuit::emit(const Block &block, long long key) {
             connect(x, y, rotateBlock(r, 1), 1);
             break;
         case BLOCK_SWITCH:
+        case BLOCK_BUTTON:
             connect(x + 1, y);
             connect(x, y - 1);
             connect(x, y + 1);
@@ -79,7 +80,7 @@ void Circuit::evaluate(long long key, BlockConnectionCount count) {
     auto it = blocks.find(key);
     if (it == blocks.end()) return;
     Block &block = it->second;
-    if (block.typeId == BLOCK_SWITCH || block.typeId == BLOCK_CLOCK) return;
+    if (block.typeId == BLOCK_SWITCH || block.typeId == BLOCK_CLOCK || block.typeId == BLOCK_BUTTON) return;
     bool active = isBlockActive(block.typeId, count);
     if (active != block.active) {
         block.active = active;
@@ -113,6 +114,12 @@ void Circuit::tick() {
             continue;
         }
         emit(found->second, *it);
+        if (found->second.typeId == BLOCK_BUTTON) {
+            // buttons are momentary: one pulse, then they release themselves
+            found->second.active = false;
+            it = emitters.erase(it);
+            continue;
+        }
         ++it;
     }
 
