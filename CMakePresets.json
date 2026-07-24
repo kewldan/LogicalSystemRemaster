@@ -11,6 +11,16 @@
       "displayName": "vcpkg (uses VCPKG_ROOT)",
       "binaryDir": "${sourceDir}/build",
       "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+    },
+    {
+      "name": "static",
+      "displayName": "static runtime, single exe",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-static",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+      }
     }
   ],
   "buildPresets": [
@@ -23,6 +33,11 @@
       "name": "debug",
       "configurePreset": "default",
       "configuration": "Debug"
+    },
+    {
+      "name": "static-release",
+      "configurePreset": "static",
+      "configuration": "Release"
     }
   ]
 }

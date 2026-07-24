@@ -46,3 +46,4 @@ out/
 *.bson
 !data/examples/*.bson
 /build/
+build-static/
