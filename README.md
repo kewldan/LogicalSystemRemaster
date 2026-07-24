@@ -67,20 +67,19 @@ All third-party libraries are managed through the **vcpkg manifest** ([`vcpkg.js
 
 ## 🔨 Building
 
-Requirements: **CMake ≥ 3.23**, a C++20 compiler (MSVC), [vcpkg](https://vcpkg.io/).
-
-> **Note:** the project also links against the author's in-house `Engine` library, which is **not part of this repository**. `CMakeLists.txt` expects it at the path set in `ENGINE_DIR` (`E:\Projects\Engine` by default) — adjust that variable to your local checkout of the engine before configuring.
+Requirements: **CMake ≥ 3.25**, a C++20 compiler (MSVC), [vcpkg](https://vcpkg.io/) (`VCPKG_ROOT` environment variable pointing to its checkout).
 
 ```powershell
 git clone https://github.com/kewldan/LogicalSystemRemaster.git
 cd LogicalSystemRemaster
 
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Release `
-      -DCMAKE_TOOLCHAIN_FILE=<path-to-vcpkg>/scripts/buildsystems/vcpkg.cmake
-cmake --build build --config Release
+cmake --preset default
+cmake --build --preset release
 ```
 
-vcpkg installs all manifest dependencies automatically during the configure step. Run the executable from the repository root so it can find the `data/` folder.
+The author's in-house [`Engine`](https://github.com/kewldan/Engine) library is picked up automatically: a sibling checkout (`../Engine`, override with `-DENGINE_DIR=...`) is used if present, otherwise it is fetched from GitHub and built as part of the project. vcpkg installs all manifest dependencies during the configure step.
+
+Run the executable (`build/Release/LogicalSystem.exe`) from the repository root so it can find the `data/` folder.
 
 ## ⚠️ Status
 

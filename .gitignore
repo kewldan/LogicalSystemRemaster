@@ -33,6 +33,7 @@
 
 .vs/
 build/
+CMakeUserPresets.json
 *.log
 *.pdb
 libraries/
