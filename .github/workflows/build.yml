@@ -52,8 +52,52 @@ jobs:
           name: LogicalSystem-win64
           path: LogicalSystem-win64.zip
 
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache vcpkg binary archives
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: vcpkg-macos-${{ runner.arch }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-macos-${{ runner.arch }}-
+
+      - name: Set up vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg "$GITHUB_WORKSPACE/vcpkg"
+          "$GITHUB_WORKSPACE/vcpkg/bootstrap-vcpkg.sh"
+
+      - name: Configure
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+        run: cmake --preset macos
+
+      - name: Build
+        run: cmake --build --preset macos-release
+
+      - name: Test
+        run: ctest --test-dir build-macos --output-on-failure
+
+      - name: Package
+        run: ditto -c -k --sequesterRsrc --keepParent build-macos/LogicalSystem.app LogicalSystem-macos-${{ runner.arch }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LogicalSystem-macos-${{ runner.arch }}
+          path: LogicalSystem-macos-${{ runner.arch }}.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: LogicalSystem-win64.zip
+          files: release/**/*.zip

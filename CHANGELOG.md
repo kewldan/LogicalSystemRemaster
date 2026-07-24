@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.1 — 2026-07-24
+
+### Added
+
+- Native macOS support: the project builds into a self-contained `.app` bundle on both Apple Silicon and Intel Macs. Assets and settings resolve inside the bundle, and Help links open with the system browser.
+
 ## 2.2.0 — 2026-07-24
 
 ### Added

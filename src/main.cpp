@@ -6,13 +6,28 @@
 #include "Input.h"
 #include "nfd.h"
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <string>
 #include <nlohmann/json.hpp>
 
+#ifdef _WIN32
+#include <windows.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
+
+#if defined(__APPLE__)
+#define PRIMARY_SHORTCUT_MODIFIER "Cmd"
+#else
+#define PRIMARY_SHORTCUT_MODIFIER "Ctrl"
+#endif
+
 bool vsync = true, hideUI = false;
+static const nfdfilteritem_t schemeFilter[] = {{"Logical System schemes", "bson,ls"}};
 
 struct AppSettings {
     int width = 1280, height = 720, tps = 8;
@@ -51,7 +66,7 @@ static void saveSettings(const AppSettings &s) {
 
 void openLoadDialog(BlockManager &blocks, Engine::Camera2D *camera) {
     nfdchar_t *loadPath;
-    nfdresult_t loadResult = NFD_OpenDialog("bson;ls", nullptr, &loadPath);
+    nfdresult_t loadResult = NFD_OpenDialog(&loadPath, schemeFilter, 1, nullptr);
 
     if (loadResult == NFD_OKAY) {
         ImGuiToast toast(0);
@@ -64,7 +79,7 @@ void openLoadDialog(BlockManager &blocks, Engine::Camera2D *camera) {
         }
         ImGui::InsertNotification(toast);
 
-        free(loadPath);
+        NFD_FreePath(loadPath);
     }
 }
 
@@ -74,9 +89,9 @@ bool saveScheme(BlockManager &blocks, Engine::Camera2D *camera, bool forceDialog
     std::string path = blocks.currentFile;
     if (forceDialog || path.empty()) {
         nfdchar_t *savePath = nullptr;
-        if (NFD_SaveDialog("bson;ls", nullptr, &savePath) != NFD_OKAY) return false;
+        if (NFD_SaveDialog(&savePath, schemeFilter, 1, nullptr, nullptr) != NFD_OKAY) return false;
         path = savePath;
-        free(savePath);
+        NFD_FreePath(savePath);
         if (!std::filesystem::path(path).has_extension()) path += ".bson";
     }
 
@@ -101,8 +116,9 @@ enum class PendingAction {
     None, NewScheme, OpenScheme, Exit
 };
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
+static void setWorkingDirectoryToExecutable() {
     // Resolve data/ (and logs) relative to the executable, not the caller's cwd
+#ifdef _WIN32
     char exeDir[MAX_PATH];
     if (GetModuleFileNameA(nullptr, exeDir, MAX_PATH) > 0) {
         char *slash = strrchr(exeDir, '\\');
@@ -111,6 +127,32 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             SetCurrentDirectoryA(exeDir);
         }
     }
+#elif defined(__APPLE__)
+    uint32_t size = 0;
+    _NSGetExecutablePath(nullptr, &size);
+    std::string executablePath(size, '\0');
+    if (_NSGetExecutablePath(executablePath.data(), &size) == 0) {
+        std::filesystem::current_path(std::filesystem::path(executablePath.c_str()).parent_path());
+    }
+#endif
+}
+
+static void openUrl(const char *url) {
+#ifdef _WIN32
+    ShellExecuteA(nullptr, nullptr, url, nullptr, nullptr, SW_SHOW);
+#elif defined(__APPLE__)
+    std::string command = "open \"" + std::string(url) + "\"";
+    std::system(command.c_str());
+#endif
+}
+
+#ifdef _WIN32
+int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
+#else
+int main() {
+#endif
+    setWorkingDirectoryToExecutable();
+    if (NFD_Init() != NFD_OKAY) return 1;
 
     AppSettings settings = loadSettings();
     vsync = settings.vsync;
@@ -141,9 +183,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     ImFontConfig font_cfg;
     font_cfg.FontDataOwnedByAtlas = false;
 
+#if !defined(NDEBUG) || defined(__APPLE__)
+    io->Fonts->AddFontFromFileTTF("data/fonts/comfortaa.ttf", 16.f, &font_cfg);
+#else
     int fontSize = 0;
     void *fontData = Engine::Filesystem::readResourceFile("data/fonts/comfortaa.ttf", &fontSize);
-    io->Fonts->AddFontFromMemoryTTF(fontData, fontSize, 16.f, &font_cfg);
+    if (fontData && fontSize > 0) io->Fonts->AddFontFromMemoryTTF(fontData, fontSize, 16.f, &font_cfg);
+#endif
     static const ImWchar icons_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
 
     ImFontConfig icons_config;
@@ -151,14 +197,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     icons_config.PixelSnapH = true;
     icons_config.FontDataOwnedByAtlas = false;
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(__APPLE__)
     io->Fonts->AddFontFromFileTTF("data/fonts/fa.ttf", 16.f, &icons_config,
                                   icons_ranges);
 #else
     int iconsFontSize;
     void *bin = static_cast<void *>(Engine::Filesystem::readResourceFile("data/fonts/fa.ttf", &iconsFontSize));
-    io->Fonts->AddFontFromMemoryTTF(bin, iconsFontSize, 16.f, &icons_config,
-                                    icons_ranges);
+    if (bin && iconsFontSize > 0) io->Fonts->AddFontFromMemoryTTF(bin, iconsFontSize, 16.f, &icons_config,
+                                                                  icons_ranges);
 #endif
 
     BlockManager blocks(&window, quadVertices, (int) sizeof(quadVertices));
@@ -221,6 +267,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         window.reset();
         window.setVsync(vsync);
 
+        // GLFW reports the cursor in logical points, while the renderer uses
+        // framebuffer pixels. They differ on Retina / HiDPI displays.
+        int logicalWidth, logicalHeight;
+        glfwGetWindowSize(window.getId(), &logicalWidth, &logicalHeight);
+        const float cursorScaleX = logicalWidth > 0 ? (float) window.width / logicalWidth : 1.f;
+        const float cursorScaleY = logicalHeight > 0 ? (float) window.height / logicalHeight : 1.f;
+        auto toFramebuffer = [&](glm::vec2 position) {
+            return glm::vec2(position.x * cursorScaleX, position.y * cursorScaleY);
+        };
+        const glm::vec2 cursorPosition = toFramebuffer(input.getCursorPosition());
+
         static double tickAccumulator = 0.0;
         if (blocks.simulate) {
             tickAccumulator += io->DeltaTime;
@@ -236,8 +293,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             tickAccumulator = 0.0;
         }
 
-        float cursorX = map(input.getCursorPosition().x, (float) window.width, camera.left, camera.right);
-        float cursorY = map(input.getCursorPosition().y, (float) window.height, camera.bottom, camera.top);
+        float cursorX = map(cursorPosition.x, (float) window.width, camera.left, camera.right);
+        float cursorY = map(cursorPosition.y, (float) window.height, camera.bottom, camera.top);
         blockX = (int) floorf((cursorX + camera.position.x) / 32.f +
                               0.5f);
         blockY = (int) floorf((((float) window.height - cursorY) + camera.position.y) / 32.f +
@@ -313,7 +370,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             if (input.isKeyJustPressed(GLFW_KEY_DELETE)) {
                 blocks.delete_selected();
             }
-            if (input.isKeyPressed(GLFW_KEY_LEFT_CONTROL)) {
+            #if defined(__APPLE__)
+            const bool primaryShortcutModifier = input.isKeyPressed(GLFW_KEY_LEFT_SUPER) ||
+                                                input.isKeyPressed(GLFW_KEY_RIGHT_SUPER);
+            #else
+            const bool primaryShortcutModifier = input.isKeyPressed(GLFW_KEY_LEFT_CONTROL) ||
+                                                input.isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
+            #endif
+            if (primaryShortcutModifier) {
                 if (input.isKeyJustPressed(GLFW_KEY_S)) {
                     saveScheme(blocks, &camera, input.isKeyPressed(GLFW_KEY_LEFT_SHIFT));
                 }
@@ -365,8 +429,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             if (!io->WantCaptureMouse) {
                 if (input.getMouseWheelDelta().y != 0.f) {
                     camera.zoomAt(input.getMouseWheelDelta().y * -0.1f,
-                                  glm::vec2(input.getCursorPosition().x / (float) window.width,
-                                            1.f - input.getCursorPosition().y / (float) window.height));
+                                  glm::vec2(cursorPosition.x / (float) window.width,
+                                            1.f - cursorPosition.y / (float) window.height));
                 }
                 if (input.isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_MIDDLE)) {
                     Block *picked = blocks.get(blockX, blockY);
@@ -428,10 +492,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             cameraStart = camera.position;
         }
         if (input.isDragging()) {
-            start = input.getDraggingStartPosition();
+            start = toFramebuffer(input.getDraggingStartPosition());
             start.x = map(start.x, (float) window.width, camera.left, camera.right);
             start.y = map(start.y, (float) window.height, camera.bottom, camera.top);
-            delta = input.getCursorPosition() - input.getDraggingStartPosition();
+            delta = cursorPosition - toFramebuffer(input.getDraggingStartPosition());
             delta.x *= (camera.right - camera.left) / (float) window.width;
             delta.y *= (camera.top - camera.bottom) / (float) window.height;
             cameraDelta = glm::vec2(camera.position.x, camera.position.y) - cameraStart;
@@ -469,7 +533,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         if (pending != PendingAction::None && !ImGui::IsPopupOpen("Unsaved changes")) {
             ImGui::OpenPopup("Unsaved changes");
         }
-        ImGui::SetNextWindowPos(ImVec2((float) window.width * 0.5f, (float) window.height * 0.5f),
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
                                 ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
         if (ImGui::BeginPopupModal("Unsaved changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("The current scheme has unsaved changes.");
@@ -515,13 +579,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             if (ImGui::Begin("Simulation", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_MenuBar)) {
                 if (ImGui::BeginMenuBar()) {
                     if (ImGui::BeginMenu("File")) {
-                        if (ImGui::MenuItem(ICON_FA_FILE "  New", "Ctrl + N"))
+                        if (ImGui::MenuItem(ICON_FA_FILE "  New", PRIMARY_SHORTCUT_MODIFIER " + N"))
                             request(PendingAction::NewScheme);
-                        if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " Open", "Ctrl + O"))
+                        if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " Open", PRIMARY_SHORTCUT_MODIFIER " + O"))
                             request(PendingAction::OpenScheme);
-                        if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK "  Save", "Ctrl + S"))
+                        if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK "  Save", PRIMARY_SHORTCUT_MODIFIER " + S"))
                             saveScheme(blocks, &camera, false);
-                        if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK "  Save As...", "Ctrl + Shift + S"))
+                        if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK "  Save As...", PRIMARY_SHORTCUT_MODIFIER " + Shift + S"))
                             saveScheme(blocks, &camera, true);
                         ImGui::Separator();
                         if (ImGui::MenuItem(ICON_FA_FILE_EXPORT " Export to clipboard"))
@@ -531,18 +595,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Edit")) {
-                        if (ImGui::MenuItem(ICON_FA_ROTATE_LEFT " Undo", "Ctrl + Z", false, blocks.canUndo()))
+                        if (ImGui::MenuItem(ICON_FA_ROTATE_LEFT " Undo", PRIMARY_SHORTCUT_MODIFIER " + Z", false, blocks.canUndo()))
                             blocks.undo();
-                        if (ImGui::MenuItem(ICON_FA_ROTATE_RIGHT " Redo", "Ctrl + Y", false, blocks.canRedo()))
+                        if (ImGui::MenuItem(ICON_FA_ROTATE_RIGHT " Redo", PRIMARY_SHORTCUT_MODIFIER " + Y", false, blocks.canRedo()))
                             blocks.redo();
                         ImGui::Separator();
-                        if (ImGui::MenuItem(ICON_FA_COPY " Copy", "Ctrl + C"))
+                        if (ImGui::MenuItem(ICON_FA_COPY " Copy", PRIMARY_SHORTCUT_MODIFIER " + C"))
                             blocks.copy(blockX, blockY);
-                        if (ImGui::MenuItem(ICON_FA_PASTE " Paste", "Ctrl + V"))
+                        if (ImGui::MenuItem(ICON_FA_PASTE " Paste", PRIMARY_SHORTCUT_MODIFIER " + V"))
                             blocks.beginPaste();
-                        if (ImGui::MenuItem(ICON_FA_HAND_SCISSORS " Cut", "Ctrl + X"))
+                        if (ImGui::MenuItem(ICON_FA_HAND_SCISSORS " Cut", PRIMARY_SHORTCUT_MODIFIER " + X"))
                             blocks.cut(blockX, blockY);
-                        if (ImGui::MenuItem(ICON_FA_SQUARE_CHECK " Select all", "Ctrl + A"))
+                        if (ImGui::MenuItem(ICON_FA_SQUARE_CHECK " Select all", PRIMARY_SHORTCUT_MODIFIER " + A"))
                             blocks.select_all();
                         if (ImGui::MenuItem(ICON_FA_TRASH_CAN " Delete", "DELETE"))
                             blocks.delete_selected();
@@ -568,11 +632,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                     }
                     if (ImGui::BeginMenu("Help")) {
                         if (ImGui::MenuItem("Itch.io"))
-                            ShellExecute(nullptr, nullptr, "https://kewldan.itch.io/logical-system", nullptr, nullptr,
-                                         SW_SHOW);
+                            openUrl("https://kewldan.itch.io/logical-system");
                         if (ImGui::MenuItem("Source code"))
-                            ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
-                                         nullptr, SW_SHOW);
+                            openUrl("https://github.com/kewldan/LogicalSystemRemaster");
                         static const std::string versionString = std::format("Version: {} ({})", LS_VERSION, __DATE__);
                         ImGui::MenuItem(versionString.c_str(), nullptr, nullptr, false);
                         ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
@@ -639,5 +701,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     saveSettings(settings);
 
     Engine::HUD::destroy();
+    NFD_Quit();
     return 0;
 }

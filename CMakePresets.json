@@ -21,6 +21,15 @@
         "VCPKG_TARGET_TRIPLET": "x64-windows-static",
         "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>"
       }
+    },
+    {
+      "name": "macos",
+      "displayName": "macOS app bundle (uses VCPKG_ROOT)",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-macos",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     }
   ],
   "buildPresets": [
@@ -37,6 +46,11 @@
     {
       "name": "static-release",
       "configurePreset": "static",
+      "configuration": "Release"
+    },
+    {
+      "name": "macos-release",
+      "configurePreset": "macos",
       "configuration": "Release"
     }
   ]

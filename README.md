@@ -75,7 +75,7 @@ All third-party libraries are managed through the **vcpkg manifest** ([`vcpkg.js
 
 ## 🔨 Building
 
-Requirements: **CMake ≥ 3.25**, a C++20 compiler (MSVC), [vcpkg](https://vcpkg.io/) (`VCPKG_ROOT` environment variable pointing to its checkout).
+Requirements: **CMake ≥ 3.25**, a C++20 compiler (MSVC on Windows or Apple Clang on macOS), [vcpkg](https://vcpkg.io/) (`VCPKG_ROOT` environment variable pointing to its checkout).
 
 ```powershell
 git clone https://github.com/kewldan/LogicalSystemRemaster.git
@@ -88,6 +88,23 @@ cmake --build --preset release
 The author's in-house [`Engine`](https://github.com/kewldan/Engine) library is picked up automatically: a sibling checkout (`../Engine`, override with `-DENGINE_DIR=...`) is used if present, otherwise it is fetched from GitHub and built as part of the project. vcpkg installs all manifest dependencies during the configure step.
 
 The executable (`build/Release/LogicalSystem.exe`) can be started from anywhere — assets resolve relative to the exe. A single-file static build is available via `cmake --preset static && cmake --build --preset static-release`.
+
+### macOS
+
+Install the Xcode command-line tools and clone/bootstrap vcpkg, then configure and build as usual:
+
+```sh
+xcode-select --install
+git clone https://github.com/microsoft/vcpkg.git ~/vcpkg
+~/vcpkg/bootstrap-vcpkg.sh
+export VCPKG_ROOT="$HOME/vcpkg"
+
+cmake --preset macos
+cmake --build --preset macos-release
+open build-macos/LogicalSystem.app
+```
+
+The build produces a native `.app` bundle for the host architecture (Apple Silicon on ARM Macs, Intel on Intel Macs). The bundled `data/` directory is placed inside the application, so the app can be moved or launched from Finder.
 
 Run the tests with:
 
