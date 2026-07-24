@@ -44,4 +44,5 @@ out/
 *.ls
 *.ilk
 *.bson
+!data/examples/*.bson
 /build/

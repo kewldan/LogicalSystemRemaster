@@ -17,6 +17,11 @@ data/shaders/quad.frag RCDATA "data/shaders/quad.frag"
 data/textures/favicon.png RCDATA "data/textures/favicon.png"
 data/textures/blocks.png RCDATA "data/textures/blocks.png"
 
+data/examples/blinker.bson RCDATA "data/examples/blinker.bson"
+data/examples/gates.bson RCDATA "data/examples/gates.bson"
+data/examples/rs-latch.bson RCDATA "data/examples/rs-latch.bson"
+data/examples/full-adder.bson RCDATA "data/examples/full-adder.bson"
+
 1 VERSIONINFO
  FILEVERSION 2,0,9
  PRODUCTVERSION 2,0,9
