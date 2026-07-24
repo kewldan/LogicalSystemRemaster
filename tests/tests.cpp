@@ -1,0 +1,274 @@
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+
+#include <doctest/doctest.h>
+
+#include <fstream>
+#include <iterator>
+#include <vector>
+
+#include "Scheme.h"
+#include "Simulation.h"
+#include "io/Filesystem.h"
+
+static void put(Circuit &c, int x, int y, BlockId type, BlockRotation rotation = 0, bool active = false) {
+    Block block(type, rotation);
+    block.active = active;
+    c.blocks[Block_TO_LONG(x, y)] = block;
+}
+
+static bool lamp(Circuit &c, int x, int y) {
+    auto it = c.blocks.find(Block_TO_LONG(x, y));
+    REQUIRE(it != c.blocks.end());
+    return it->second.active;
+}
+
+static void setSwitch(Circuit &c, int x, int y, bool on) {
+    auto it = c.blocks.find(Block_TO_LONG(x, y));
+    REQUIRE(it != c.blocks.end());
+    REQUIRE(it->second.typeId == BLOCK_SWITCH);
+    it->second.active = on;
+    c.invalidate(x, y);
+}
+
+static void settle(Circuit &c, int ticks = 40) {
+    for (int i = 0; i < ticks; i++) c.tick();
+}
+
+static Circuit loadExample(const char *path) {
+    std::ifstream file(path, std::ios::binary);
+    REQUIRE_MESSAGE(file.good(), path);
+    std::vector<char> data((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    Circuit c;
+    SchemeCamera camera;
+    REQUIRE(schemeFromMemory(data.data(), (int) data.size(), true, c.blocks, camera));
+    c.rebuild();
+    return c;
+}
+
+TEST_CASE("rotateBlock wraps in both directions") {
+    CHECK(rotateBlock(0, 1) == 1);
+    CHECK(rotateBlock(3, 1) == 0);
+    CHECK(rotateBlock(0, -1) == 3);
+    CHECK(rotateBlock(2, -1) == 1);
+}
+
+TEST_CASE("isBlockActive truth tables") {
+    for (BlockConnectionCount c = 0; c < 5; c++) {
+        CHECK(isBlockActive(0, c) == (c > 0));            // wire
+        CHECK(isBlockActive(7, c) == (c == 0));           // NOT
+        CHECK(isBlockActive(8, c) == (c >= 2));           // AND
+        CHECK(isBlockActive(9, c) == (c < 2));            // NAND
+        CHECK(isBlockActive(10, c) == (c % 2 == 1));      // XOR
+        CHECK(isBlockActive(11, c) == (c % 2 == 0));      // NXOR
+        CHECK(isBlockActive(BLOCK_SWITCH, c) == false);
+        CHECK(isBlockActive(14, c) == (c > 0));           // lamp
+    }
+}
+
+TEST_CASE("block record round trip") {
+    Block original(10, 3);
+    original.active = true;
+    char buffer[BLOCK_RECORD_SIZE];
+    original.write(buffer, Block_TO_LONG(-5, 7));
+
+    long long pos = 0;
+    Block parsed(buffer, &pos);
+    CHECK(Block_X(pos) == -5);
+    CHECK(Block_Y(pos) == 7);
+    CHECK(parsed.typeId == 10);
+    CHECK(parsed.rotation == 3);
+    CHECK(parsed.active);
+
+    buffer[8] = 99; // invalid type must degrade to 0, not crash
+    Block corrupted(buffer, &pos);
+    CHECK(corrupted.typeId == 0);
+}
+
+TEST_CASE("signals travel one wire per tick and decay") {
+    Circuit c;
+    put(c, 0, 0, BLOCK_SWITCH, 0, true);
+    put(c, 1, 0, 0, 1);
+    put(c, 2, 0, 0, 1);
+    put(c, 3, 0, 14);
+    c.rebuild();
+
+    c.tick();
+    CHECK(lamp(c, 1, 0));
+    CHECK_FALSE(lamp(c, 3, 0));
+    c.tick();
+    c.tick();
+    CHECK(lamp(c, 3, 0));
+
+    setSwitch(c, 0, 0, false);
+    c.tick();
+    CHECK_FALSE(lamp(c, 1, 0));
+    CHECK(lamp(c, 3, 0)); // still lit by the wire in front of it
+    c.tick();
+    c.tick();
+    CHECK_FALSE(lamp(c, 3, 0));
+}
+
+TEST_CASE("NOT is active with no inputs, clock toggles") {
+    Circuit c;
+    put(c, 0, 0, 7, 1);
+    put(c, 5, 5, BLOCK_CLOCK, 1);
+    c.rebuild();
+    settle(c, 3);
+    CHECK(lamp(c, 0, 0));
+
+    bool state = c.blocks[Block_TO_LONG(5, 5)].active;
+    c.tick();
+    CHECK(c.blocks[Block_TO_LONG(5, 5)].active != state);
+}
+
+TEST_CASE("editing while running keeps bookkeeping consistent") {
+    Circuit c;
+    put(c, 0, 0, 7, 1); // NOT feeding right
+    put(c, 1, 0, 0, 1);
+    put(c, 2, 0, 14);
+    c.rebuild();
+    settle(c);
+    CHECK(lamp(c, 2, 0));
+
+    c.blocks.erase(Block_TO_LONG(0, 0)); // remove the source
+    c.invalidate(0, 0);
+    settle(c);
+    CHECK_FALSE(lamp(c, 2, 0));
+
+    put(c, 0, 0, 7, 1); // place it back
+    c.invalidate(0, 0);
+    settle(c);
+    CHECK(lamp(c, 2, 0));
+}
+
+TEST_CASE("scheme BSON round trip") {
+    Blocks blocks;
+    Block a(10, 2);
+    a.active = true;
+    blocks[Block_TO_LONG(-3, 9)] = a;
+    blocks[Block_TO_LONG(100, -100)] = Block(0, 1);
+    SchemeCamera camera{12.f, -34.f, 1.5f};
+
+    auto bson = schemeToBson(blocks, camera);
+
+    Blocks parsed;
+    SchemeCamera parsedCamera;
+    REQUIRE(schemeFromMemory(reinterpret_cast<const char *>(bson.data()), (int) bson.size(), true,
+                             parsed, parsedCamera));
+    REQUIRE(parsed.size() == 2);
+    CHECK(parsed[Block_TO_LONG(-3, 9)].typeId == 10);
+    CHECK(parsed[Block_TO_LONG(-3, 9)].rotation == 2);
+    CHECK(parsed[Block_TO_LONG(-3, 9)].active);
+    CHECK(parsedCamera.zoom == doctest::Approx(1.5f));
+    CHECK(parsedCamera.x == doctest::Approx(12.f));
+}
+
+TEST_CASE("corrupted schemes are rejected, not fatal") {
+    Blocks blocks;
+    SchemeCamera camera;
+    CHECK_FALSE(schemeFromMemory("garbage data here", 17, true, blocks, camera));
+    CHECK_FALSE(schemeFromMemory("short", 5, false, blocks, camera));
+    CHECK_FALSE(schemeFromMemory(nullptr, 0, true, blocks, camera));
+}
+
+TEST_CASE("compress/decompress round trips and rejects garbage") {
+    unsigned char tiny[] = {42};
+    unsigned long compressedLength = 0;
+    auto *compressed = Engine::Filesystem::compress(tiny, 1, &compressedLength);
+    REQUIRE(compressed != nullptr);
+    REQUIRE(compressedLength > 0);
+
+    unsigned long decompressedLength = 0;
+    auto *decompressed = Engine::Filesystem::decompress(compressed, compressedLength, &decompressedLength);
+    REQUIRE(decompressed != nullptr);
+    REQUIRE(decompressedLength == 1);
+    CHECK(decompressed[0] == 42);
+    delete[] compressed;
+    free(decompressed);
+
+    unsigned char garbage[64];
+    for (int i = 0; i < 64; i++) garbage[i] = (unsigned char) (i * 37 + 1);
+    unsigned long length = 0;
+    CHECK(Engine::Filesystem::decompress(garbage, 64, &length) == nullptr);
+
+    unsigned char big[10000];
+    for (int i = 0; i < 10000; i++) big[i] = (unsigned char) (i % 251);
+    compressed = Engine::Filesystem::compress(big, 10000, &compressedLength);
+    REQUIRE(compressed != nullptr);
+    decompressed = Engine::Filesystem::decompress(compressed, compressedLength, &decompressedLength);
+    REQUIRE(decompressed != nullptr);
+    REQUIRE(decompressedLength == 10000);
+    CHECK(memcmp(decompressed, big, 10000) == 0);
+    // truncated stream must fail cleanly instead of hanging
+    CHECK(Engine::Filesystem::decompress(compressed, compressedLength / 2, &length) == nullptr);
+    delete[] compressed;
+    free(decompressed);
+}
+
+TEST_CASE("example: blinker") {
+    Circuit c = loadExample("data/examples/blinker.bson");
+    settle(c, 10);
+    bool seenOn = false, seenOff = false;
+    for (int i = 0; i < 8; i++) {
+        c.tick();
+        (lamp(c, 3, 0) ? seenOn : seenOff) = true;
+    }
+    CHECK(seenOn);
+    CHECK(seenOff);
+}
+
+TEST_CASE("example: logic gates") {
+    Circuit c = loadExample("data/examples/gates.bson");
+    for (int a = 0; a <= 1; a++) {
+        setSwitch(c, 0, 8, a);
+        settle(c);
+        CHECK(lamp(c, 4, 8) == !a); // NOT
+        for (int b = 0; b <= 1; b++) {
+            setSwitch(c, 0, 5, a);
+            setSwitch(c, 0, 3, b);
+            setSwitch(c, 0, 0, a);
+            setSwitch(c, 0, -2, b);
+            settle(c);
+            CHECK(lamp(c, 5, 4) == (a && b));  // AND
+            CHECK(lamp(c, 5, -1) == (a != b)); // XOR
+        }
+    }
+}
+
+TEST_CASE("example: RS latch holds state") {
+    Circuit c = loadExample("data/examples/rs-latch.bson");
+    auto press = [&](int x, int y) {
+        setSwitch(c, x, y, true);
+        settle(c);
+        setSwitch(c, x, y, false);
+        settle(c);
+    };
+    press(2, 7); // S
+    CHECK(lamp(c, 5, 4));
+    CHECK_FALSE(lamp(c, -1, 0));
+    for (int i = 0; i < 10; i++) { // stable, not oscillating
+        c.tick();
+        CHECK(lamp(c, 5, 4));
+        CHECK_FALSE(lamp(c, -1, 0));
+    }
+    press(2, -3); // R
+    CHECK_FALSE(lamp(c, 5, 4));
+    CHECK(lamp(c, -1, 0));
+}
+
+TEST_CASE("example: full adder truth table") {
+    Circuit c = loadExample("data/examples/full-adder.bson");
+    for (int a = 0; a <= 1; a++) {
+        for (int b = 0; b <= 1; b++) {
+            for (int cin = 0; cin <= 1; cin++) {
+                setSwitch(c, 0, 8, a);
+                setSwitch(c, 0, -4, b);
+                setSwitch(c, -2, 4, cin);
+                settle(c);
+                int total = a + b + cin;
+                CHECK_MESSAGE(lamp(c, 8, 4) == (total % 2 == 1), "Sum(", a, b, cin, ")");
+                CHECK_MESSAGE(lamp(c, 8, 0) == (total >= 2), "Cout(", a, b, cin, ")");
+            }
+        }
+    }
+}

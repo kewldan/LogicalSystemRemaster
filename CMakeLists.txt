@@ -17,6 +17,7 @@ find_package(imgui CONFIG REQUIRED)
 find_package(base64 CONFIG REQUIRED)
 find_package(unofficial-nativefiledialog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(doctest CONFIG REQUIRED)
 
 # Engine: use a local checkout if present, otherwise fetch it from GitHub
 set(ENGINE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../Engine" CACHE PATH "Path to a kewldan/Engine checkout")
@@ -37,6 +38,23 @@ file(GLOB_RECURSE PROJECT_SRCS
 
 add_executable(LogicalSystem WIN32 ${PROJECT_SRCS} resources.rc)
 
-target_compile_definitions(LogicalSystem PRIVATE BLOCK_BATCHING=8192)
+target_compile_definitions(LogicalSystem PRIVATE BLOCK_BATCHING=8192 LS_VERSION="${PROJECT_VERSION}")
 target_include_directories(LogicalSystem PRIVATE include ${Stb_INCLUDE_DIR})
 target_link_libraries(LogicalSystem PRIVATE Engine glad::glad glfw glm::glm plog::plog ZLIB::ZLIB aklomp::base64 imgui::imgui unofficial::nativefiledialog::nfd)
+
+# keep data/ next to the executable so it can run from anywhere
+add_custom_command(TARGET LogicalSystem POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/data $<TARGET_FILE_DIR:LogicalSystem>/data)
+
+enable_testing()
+add_executable(LogicalSystemTests
+        tests/tests.cpp
+        src/Block.cpp
+        src/Simulation.cpp
+        src/Scheme.cpp
+)
+target_include_directories(LogicalSystemTests PRIVATE include ${Stb_INCLUDE_DIR})
+target_link_libraries(LogicalSystemTests PRIVATE doctest::doctest Engine plog::plog nlohmann_json::nlohmann_json ZLIB::ZLIB)
+add_test(NAME LogicalSystemTests COMMAND LogicalSystemTests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

@@ -33,5 +33,8 @@
   }, {
     "name" : "nativefiledialog",
     "version>=" : "2022-01-20"
+  }, {
+    "name" : "doctest",
+    "version>=" : "2.4.11"
   } ]
 }
