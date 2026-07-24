@@ -6,6 +6,7 @@
 #include <iterator>
 #include <vector>
 
+#include "ChunkIndex.h"
 #include "Scheme.h"
 #include "Simulation.h"
 #include "io/Filesystem.h"
@@ -256,6 +257,59 @@ TEST_CASE("example: RS latch holds state") {
     CHECK(lamp(c, -1, 0));
 }
 
+TEST_CASE("button emits a single-tick pulse") {
+    Circuit c;
+    put(c, 0, 0, BLOCK_BUTTON, 0, true); // just pressed
+    put(c, 1, 0, 0, 1);
+    put(c, 2, 0, 14);
+    c.rebuild();
+
+    c.tick(); // button pulses and releases itself
+    CHECK_FALSE(c.blocks[Block_TO_LONG(0, 0)].active);
+    CHECK(lamp(c, 1, 0));
+    c.tick();
+    CHECK(lamp(c, 2, 0));
+    c.tick();
+    CHECK_FALSE(lamp(c, 1, 0)); // pulse has moved on
+    c.tick();
+    c.tick();
+    CHECK_FALSE(lamp(c, 2, 0));
+}
+
+TEST_CASE("chunk index matches brute force") {
+    Blocks blocks;
+    ChunkIndex index;
+    for (int i = -100; i <= 100; i += 7) {
+        long long key = Block_TO_LONG(i, -i * 3);
+        blocks[key] = Block(static_cast<BlockId>(0), 0);
+        index.insert(key);
+    }
+    // erase a few
+    for (int i = -100; i <= 100; i += 21) {
+        long long key = Block_TO_LONG(i, -i * 3);
+        blocks.erase(key);
+        index.erase(key);
+    }
+
+    int x0 = -50, y0 = -160, x1 = 60, y1 = 90;
+    std::unordered_set<long long> visited;
+    index.visit(x0, y0, x1, y1, [&](long long key) { visited.insert(key); });
+
+    for (auto &entry: blocks) {
+        int x = Block_X(entry.first), y = Block_Y(entry.first);
+        if (x >= x0 && x <= x1 && y >= y0 && y <= y1) {
+            CHECK_MESSAGE(visited.contains(entry.first), "missing ", x, ",", y);
+        }
+    }
+    for (long long key: visited) {
+        CHECK(blocks.contains(key)); // no stale keys
+    }
+
+    ChunkIndex rebuilt;
+    rebuilt.rebuild(blocks);
+    CHECK(rebuilt.chunkCount() == index.chunkCount());
+}
+
 TEST_CASE("example: full adder truth table") {
     Circuit c = loadExample("data/examples/full-adder.bson");
     for (int a = 0; a <= 1; a++) {
@@ -267,7 +321,30 @@ TEST_CASE("example: full adder truth table") {
                 settle(c);
                 int total = a + b + cin;
                 CHECK_MESSAGE(lamp(c, 8, 4) == (total % 2 == 1), "Sum(", a, b, cin, ")");
-                CHECK_MESSAGE(lamp(c, 8, 0) == (total >= 2), "Cout(", a, b, cin, ")");
+                CHECK_MESSAGE(lamp(c, 9, 0) == (total >= 2), "Cout(", a, b, cin, ")");
+            }
+        }
+    }
+}
+
+TEST_CASE("example: 4-bit ripple-carry adder, all 512 combinations") {
+    Circuit c = loadExample("data/examples/adder-4bit.bson");
+    const int STEP = 16;
+    for (int a = 0; a < 16; a++) {
+        for (int b = 0; b < 16; b++) {
+            for (int cin = 0; cin <= 1; cin++) {
+                for (int i = 0; i < 4; i++) {
+                    setSwitch(c, 0, -i * STEP + 8, (a >> i) & 1);
+                    setSwitch(c, 0, -i * STEP - 4, (b >> i) & 1);
+                }
+                setSwitch(c, -2, 4, cin);
+                settle(c, 220);
+                int total = a + b + cin;
+                for (int i = 0; i < 4; i++) {
+                    CHECK_MESSAGE(lamp(c, 8, -i * STEP + 4) == (((total >> i) & 1) != 0),
+                                  "Sum", i, "(", a, "+", b, "+", cin, ")");
+                }
+                CHECK_MESSAGE(lamp(c, 9, -3 * STEP) == (total >= 16), "Cout(", a, "+", b, "+", cin, ")");
             }
         }
     }
