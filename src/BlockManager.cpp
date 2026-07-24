@@ -1,13 +1,15 @@
 #include "BlockManager.h"
+#include "Scheme.h"
 #include "stb_image.h"
 
 #include <algorithm>
 #include <chrono>
 #include <imgui_notify.h>
 #include <libbase64.h>
-#include <nlohmann/json.hpp>
 
-BlockManager::BlockManager(Engine::Window *window, const float vertices[], int count) {
+static constexpr size_t UNDO_LIMIT = 200;
+
+BlockManager::BlockManager(Engine::Window *window, const float vertices[], int count) : blocks(circuit.blocks) {
     assert(window != nullptr);
     assert(vertices != nullptr);
     assert(count > 0);
@@ -61,17 +63,88 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
     glVertexAttribIPointer(3, 2, GL_INT, sizeof(BlockInfo), (void *) sizeof(int));
     glVertexAttribDivisor(2, 1);
     glVertexAttribDivisor(3, 1);
-
-    thread = std::thread(&BlockManager::thread_tick, this);
 }
 
 BlockManager::~BlockManager() {
     delete[] info;
 }
 
+void BlockManager::record(long long key, const Block *before, const Block *after) {
+    UndoChange change;
+    change.key = key;
+    change.hadBefore = before != nullptr;
+    change.hasAfter = after != nullptr;
+    if (before) change.before = *before;
+    if (after) change.after = *after;
+    pendingChanges.push_back(change);
+    dirty = true;
+}
+
+void BlockManager::commitUndo() {
+    if (pendingChanges.empty()) return;
+    undoStack.push_back(std::move(pendingChanges));
+    pendingChanges.clear();
+    if (undoStack.size() > UNDO_LIMIT) {
+        undoStack.erase(undoStack.begin());
+    }
+    redoStack.clear();
+}
+
+void BlockManager::clearHistory() {
+    undoStack.clear();
+    redoStack.clear();
+    pendingChanges.clear();
+}
+
+void BlockManager::applyChanges(const std::vector<UndoChange> &changes, bool forward) {
+    auto apply = [this](const UndoChange &change, bool fwd) {
+        bool has = fwd ? change.hasAfter : change.hadBefore;
+        const Block &value = fwd ? change.after : change.before;
+        if (has) {
+            blocks[change.key] = value;
+        } else {
+            blocks.erase(change.key);
+        }
+    };
+    if (forward) {
+        for (const auto &change: changes) apply(change, true);
+    } else {
+        for (auto it = changes.rbegin(); it != changes.rend(); ++it) apply(*it, false);
+    }
+}
+
+void BlockManager::undo() {
+    if (undoStack.empty()) return;
+    applyChanges(undoStack.back(), false);
+    redoStack.push_back(std::move(undoStack.back()));
+    undoStack.pop_back();
+    circuit.rebuild();
+    dirty = true;
+}
+
+void BlockManager::redo() {
+    if (redoStack.empty()) return;
+    applyChanges(redoStack.back(), true);
+    undoStack.push_back(std::move(redoStack.back()));
+    redoStack.pop_back();
+    circuit.rebuild();
+    dirty = true;
+}
+
+bool BlockManager::canUndo() const {
+    return !undoStack.empty();
+}
+
+bool BlockManager::canRedo() const {
+    return !redoStack.empty();
+}
+
 void BlockManager::set(int x, int y, const Block &block) {
-    std::lock_guard<std::mutex> lock(mutex);
-    blocks[Block_TO_LONG(x, y)] = block;
+    long long key = Block_TO_LONG(x, y);
+    auto it = blocks.find(key);
+    record(key, it != blocks.end() ? &it->second : nullptr, &block);
+    blocks[key] = block;
+    circuit.invalidate(x, y);
 }
 
 void BlockManager::set(int x, int y) {
@@ -88,22 +161,43 @@ bool BlockManager::has(int x, int y) {
 }
 
 void BlockManager::erase(int x, int y) {
-    std::lock_guard<std::mutex> lock(mutex);
-    blocks.erase(Block_TO_LONG(x, y));
+    long long key = Block_TO_LONG(x, y);
+    auto it = blocks.find(key);
+    if (it == blocks.end()) return;
+    record(key, &it->second, nullptr);
+    blocks.erase(it);
+    circuit.invalidate(x, y);
 }
 
 void BlockManager::clear() {
-    std::lock_guard<std::mutex> lock(mutex);
+    for (auto &it: blocks) {
+        record(it.first, &it.second, nullptr);
+    }
     blocks.clear();
+    circuit.rebuild();
+    commitUndo();
     selectedBlocks = 0;
+    currentFile.clear();
+    dirty = false;
 }
 
 void BlockManager::rotate(int x, int y, BlockRotation rotation) {
     assert(rotation <= 3);
+    long long key = Block_TO_LONG(x, y);
+    auto it = blocks.find(key);
+    if (it == blocks.end()) return;
+    Block after = it->second;
+    after.rotation = rotation;
+    record(key, &it->second, &after);
+    it->second = after;
+    circuit.invalidate(x, y);
+}
+
+void BlockManager::toggle(int x, int y) {
     Block *block = get(x, y);
-    if (block != nullptr) {
-        block->rotation = rotation;
-    }
+    if (block == nullptr) return;
+    block->active ^= 1;
+    circuit.invalidate(x, y);
 }
 
 int BlockManager::length() {
@@ -111,123 +205,21 @@ int BlockManager::length() {
 }
 
 void BlockManager::update() {
-    std::lock_guard<std::mutex> lock(mutex);
-    for (auto &it: blocks) {
-        Block &block = it.second;
-        int x = Block_X(it.first);
-        int y = Block_Y(it.first);
-        BlockRotation r = block.rotation;
-
-        if (block.typeId == BLOCK_CLOCK) {
-            block.active ^= 1;
-            if (block.active) setActive(x, y, r);
-            continue;
-        }
-
-        if (!block.active) continue;
-
-        switch (block.typeId) {
-            case 0: // Straight wire
-            case 7: // NOT
-            case 8: // AND
-            case 9: // NAND
-            case 10: // XOR
-            case 11: // NXOR
-                setActive(x, y, r);
-                break;
-            case 5: // 2 wire
-                setActive(x, y, r, 2);
-                break;
-            case 6: // 3 wire
-                setActive(x, y, r, 3);
-                break;
-            case 1: // Right angled wire
-                setActive(x, y, r);
-                setActive(x, y, rotateBlock(r, 1));
-                break;
-            case 2: // Left angled wire
-                setActive(x, y, r);
-                setActive(x, y, rotateBlock(r, -1));
-                break;
-            case 3: // T wire
-                setActive(x, y, rotateBlock(r, -1));
-                setActive(x, y, rotateBlock(r, 1));
-                break;
-            case 4: // Cross wire
-                setActive(x, y, rotateBlock(r, -1));
-                setActive(x, y, r);
-                setActive(x, y, rotateBlock(r, 1));
-                break;
-            case BLOCK_SWITCH:
-                setActive(x + 1, y);
-                setActive(x, y - 1);
-                setActive(x, y + 1);
-                setActive(x - 1, y);
-                setActive(x, y);
-                break;
-            default:
-                break;
-        }
-    }
-
-    for (auto &it: blocks) {
-        Block &block = it.second;
-        if (block.typeId != BLOCK_CLOCK && block.typeId != BLOCK_SWITCH) {
-            block.active = isBlockActive(block.typeId, block.connections);
-        }
-        block.connections = 0;
-    }
-}
-
-void BlockManager::setActive(int x, int y) {
-    Block *block = get(x, y);
-    if (block != nullptr) {
-        block->connections++;
-    }
-}
-
-void BlockManager::setActive(int x, int y, BlockRotation rotation, int l) {
-    assert(l > 0);
-
-    switch (rotation) {
-        case 0:
-            setActive(x, y + l);
-            break;
-        case 1:
-            setActive(x + l, y);
-            break;
-        case 2:
-            setActive(x, y - l);
-            break;
-        case 3:
-            setActive(x - l, y);
-            break;
-        default:
-            break;
-    }
+    auto start = std::chrono::steady_clock::now();
+    circuit.tick();
+    tickTime = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 }
 
 bool BlockManager::save(Engine::Camera2D *camera, const char *path) {
     assert(path != nullptr);
-    nlohmann::json saveFile;
-    saveFile["camera"]["position"]["x"] = camera->position.x;
-    saveFile["camera"]["position"]["y"] = camera->position.y;
-    saveFile["camera"]["zoom"] = camera->getZoom();
-    saveFile["meta"]["version"] = 1;
-    saveFile["meta"]["timestamp"] = duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-    saveFile["blocks"] = nlohmann::json::array();
-    auto &list = saveFile["blocks"];
-    for (auto &it: blocks) {
-        list.push_back({
-                               {"pos",      it.first},
-                               {"type",     it.second.typeId},
-                               {"rotation", it.second.rotation},
-                               {"active",   it.second.active}
-                       });
+    SchemeCamera schemeCamera{camera->position.x, camera->position.y, camera->getZoom()};
+    auto binary = schemeToBson(blocks, schemeCamera);
+    bool ok = Engine::Filesystem::writeFile(path, reinterpret_cast<const char *>(binary.data()), binary.size());
+    if (ok) {
+        currentFile = path;
+        dirty = false;
     }
-    auto binary = nlohmann::json::to_bson(saveFile);
-    return Engine::Filesystem::writeFile(path, reinterpret_cast<const char *>(binary.data()), binary.size());
+    return ok;
 }
 
 inline bool ends_with(const char *value, const char *ending) {
@@ -245,22 +237,104 @@ bool BlockManager::load(Engine::Camera2D *camera, const char *path) {
     if (!bin) return false;
     bool ok = load_from_memory(camera, bin, size, ends_with(path, ".bson"));
     delete[] bin;
+    if (ok) {
+        currentFile = path;
+        dirty = false;
+    }
     return ok;
 }
 
-void BlockManager::thread_tick() {
-    auto lastUpdate = std::chrono::steady_clock::now();
-    while (!glfwWindowShouldClose(window->getId())) {
-        int tps = std::clamp(TPS, 1, 1000);
-        auto period = std::chrono::microseconds(1000000 / tps);
-        auto n = std::chrono::steady_clock::now();
-        if (n >= lastUpdate + period && simulate) {
-            update();
-            tickTime = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - n).count();
-            lastUpdate = n;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+bool BlockManager::load_from_memory(Engine::Camera2D *camera, const char *data, int length, bool is_bson) {
+    Blocks loaded;
+    SchemeCamera schemeCamera;
+    if (!schemeFromMemory(data, length, is_bson, loaded, schemeCamera)) {
+        return false;
     }
+    blocks = std::move(loaded);
+    circuit.rebuild();
+    clearHistory();
+    selectedBlocks = 0;
+    camera->setZoom(schemeCamera.zoom);
+    camera->position.x = schemeCamera.x;
+    camera->position.y = schemeCamera.y;
+    return true;
+}
+
+void BlockManager::load_example(Engine::Camera2D *camera, const char *path, const char *title) {
+    int size = 0;
+    auto data = (const char *) Engine::Filesystem::readResourceFile(path, &size);
+    if (data != nullptr && load_from_memory(camera, data, size, true)) {
+        currentFile.clear();
+        dirty = false;
+        ImGuiToast toast(ImGuiToastType_Success, 2000);
+        toast.set_title("%s loaded", title);
+        ImGui::InsertNotification(toast);
+    } else {
+        ImGuiToast toast(ImGuiToastType_Error, 2000);
+        toast.set_title("Failed to load %s", title);
+        ImGui::InsertNotification(toast);
+    }
+}
+
+// Serializes `count` records selected by `filter` into a compressed
+// base64 clipboard string. Returns false when there is nothing to share
+// or compression fails.
+static bool blocksToClipboard(GLFWwindow *window, const Blocks &blocks, long long originX, long long originY,
+                              bool selectedOnly, size_t count) {
+    if (count == 0) return false;
+
+    auto *raw = new unsigned char[count * BLOCK_RECORD_SIZE];
+    int offset = 0;
+    for (auto &it: blocks) {
+        if (selectedOnly && !it.second.selected) continue;
+        int x = Block_X(it.first) - (int) originX;
+        int y = Block_Y(it.first) - (int) originY;
+        it.second.write(reinterpret_cast<char *>(raw) + offset, Block_TO_LONG(x, y));
+        offset += BLOCK_RECORD_SIZE;
+    }
+
+    unsigned long len = 0;
+    auto *deflated = Engine::Filesystem::compress(raw, offset, &len);
+    delete[] raw;
+    if (deflated == nullptr) return false;
+
+    size_t b64cap = ((size_t) len + 2) / 3 * 4 + 1;
+    auto *buf = new char[b64cap];
+    size_t b64len = 0;
+    base64_encode(reinterpret_cast<const char *>(deflated), len, buf, &b64len, 0);
+    delete[] deflated;
+    buf[b64len] = 0;
+    glfwSetClipboardString(window, buf);
+    delete[] buf;
+    return true;
+}
+
+// Decodes a clipboard string produced by blocksToClipboard.
+// Returns the number of parsed records, or -1 on failure.
+static long long blocksFromClipboard(GLFWwindow *window, Blocks &out, int offsetX, int offsetY) {
+    const char *importString = glfwGetClipboardString(window);
+    if (importString == nullptr || importString[0] == 0) return -1;
+
+    size_t inLength = strlen(importString);
+    auto *bytes = new char[inLength / 4 * 3 + 4];
+    size_t written = 0;
+    long long count = -1;
+    if (base64_decode(importString, inLength, bytes, &written, 0) == 1 && written > 0) {
+        unsigned long length = 0;
+        auto *inflated = Engine::Filesystem::decompress(reinterpret_cast<unsigned char *>(bytes),
+                                                        (unsigned int) written, &length);
+        if (inflated != nullptr && length > 0 && length % BLOCK_RECORD_SIZE == 0) {
+            count = (long long) (length / BLOCK_RECORD_SIZE);
+            long long pos = 0;
+            for (long long i = 0; i < count; i++) {
+                Block block(reinterpret_cast<char *>(inflated) + i * BLOCK_RECORD_SIZE, &pos);
+                out[Block_TO_LONG(Block_X(pos) + offsetX, Block_Y(pos) + offsetY)] = block;
+            }
+        }
+        free(inflated);
+    }
+    delete[] bytes;
+    return count;
 }
 
 void BlockManager::copy(int blockX, int blockY, bool notify) {
@@ -269,46 +343,15 @@ void BlockManager::copy(int blockX, int blockY, bool notify) {
         count += it.second.selected;
     }
     selectedBlocks = (int) count;
-    if (count == 0) {
+
+    if (!blocksToClipboard(window->getId(), blocks, blockX, blockY, true, count)) {
         if (notify) {
             ImGuiToast toast(ImGuiToastType_Warning, 2000);
-            toast.set_title("Nothing to copy");
+            toast.set_title(count == 0 ? "Nothing to copy" : "Failed to copy");
             ImGui::InsertNotification(toast);
         }
         return;
     }
-
-    auto *b = new unsigned char[count * BLOCK_RECORD_SIZE];
-    int o = 0;
-    for (auto &it: blocks) {
-        if (it.second.selected) {
-            int x = Block_X(it.first) - blockX;
-            int y = Block_Y(it.first) - blockY;
-            it.second.write(reinterpret_cast<char *>(b) + o, Block_TO_LONG(x, y));
-            o += BLOCK_RECORD_SIZE;
-        }
-    }
-
-    unsigned long len = 0;
-    auto *deflated = Engine::Filesystem::compress(b, o, &len);
-    delete[] b;
-    if (deflated == nullptr) {
-        if (notify) {
-            ImGuiToast toast(ImGuiToastType_Error, 2000);
-            toast.set_title("Failed to copy");
-            ImGui::InsertNotification(toast);
-        }
-        return;
-    }
-
-    size_t b64cap = ((size_t) len + 2) / 3 * 4 + 1;
-    auto *buf = new char[b64cap];
-    size_t b64len = 0;
-    base64_encode(reinterpret_cast<const char *>(deflated), len, buf, &b64len, 0);
-    delete[] deflated;
-    buf[b64len] = 0;
-    glfwSetClipboardString(window->getId(), buf);
-    delete[] buf;
 
     if (notify) {
         ImGuiToast toast(ImGuiToastType_Success, 2000);
@@ -327,29 +370,17 @@ void BlockManager::cut(int blockX, int blockY) {
 }
 
 void BlockManager::paste(int blockX, int blockY) {
-    const char *importString = glfwGetClipboardString(window->getId());
-    long long count = -1;
+    Blocks pasted;
+    long long count = blocksFromClipboard(window->getId(), pasted, blockX, blockY);
 
-    if (importString != nullptr && importString[0] != 0) {
-        size_t inLength = strlen(importString);
-        auto *bytes = new char[inLength / 4 * 3 + 4];
-        size_t written = 0;
-        if (base64_decode(importString, inLength, bytes, &written, 0) == 1 && written > 0) {
-            unsigned long length = 0;
-            auto *inflated = Engine::Filesystem::decompress(reinterpret_cast<unsigned char *>(bytes),
-                                                            (unsigned int) written, &length);
-            if (inflated != nullptr && length > 0 && length % BLOCK_RECORD_SIZE == 0) {
-                count = (long long) (length / BLOCK_RECORD_SIZE);
-                std::lock_guard<std::mutex> lock(mutex);
-                long long pos = 0;
-                for (long long i = 0; i < count; i++) {
-                    Block block(reinterpret_cast<char *>(inflated) + i * BLOCK_RECORD_SIZE, &pos);
-                    blocks[Block_TO_LONG(Block_X(pos) + blockX, Block_Y(pos) + blockY)] = block;
-                }
-            }
-            free(inflated);
+    if (count > 0) {
+        for (auto &it: pasted) {
+            auto existing = blocks.find(it.first);
+            record(it.first, existing != blocks.end() ? &existing->second : nullptr, &it.second);
+            blocks[it.first] = it.second;
         }
-        delete[] bytes;
+        circuit.rebuild();
+        commitUndo();
     }
 
     ImGuiToast toast(0);
@@ -359,6 +390,39 @@ void BlockManager::paste(int blockX, int blockY) {
     } else {
         toast.set_type(ImGuiToastType_Error);
         toast.set_title("Failed to paste");
+    }
+    ImGui::InsertNotification(toast);
+}
+
+void BlockManager::export_scheme() {
+    ImGuiToast toast(0);
+    if (blocksToClipboard(window->getId(), blocks, 0, 0, false, blocks.size())) {
+        toast.set_type(ImGuiToastType_Success);
+        toast.set_title("Scheme exported to clipboard (%d blocks)", length());
+    } else {
+        toast.set_type(ImGuiToastType_Warning);
+        toast.set_title(blocks.empty() ? "Nothing to export" : "Failed to export");
+    }
+    ImGui::InsertNotification(toast);
+}
+
+void BlockManager::import_scheme(Engine::Camera2D *camera) {
+    Blocks imported;
+    long long count = blocksFromClipboard(window->getId(), imported, 0, 0);
+
+    ImGuiToast toast(0);
+    if (count > 0) {
+        blocks = std::move(imported);
+        circuit.rebuild();
+        clearHistory();
+        selectedBlocks = 0;
+        dirty = true;
+        camera->position = glm::vec3(0.f);
+        toast.set_type(ImGuiToastType_Success);
+        toast.set_title("Scheme imported (%d blocks)", (int) count);
+    } else {
+        toast.set_type(ImGuiToastType_Error);
+        toast.set_title("Clipboard has no scheme");
     }
     ImGui::InsertNotification(toast);
 }
@@ -374,78 +438,17 @@ void BlockManager::select_all() {
 }
 
 void BlockManager::delete_selected() {
-    std::lock_guard<std::mutex> lock(mutex);
     for (auto it = blocks.begin(); it != blocks.end();) {
         if (it->second.selected) {
+            record(it->first, &it->second, nullptr);
             it = blocks.erase(it);
         } else {
             ++it;
         }
     }
+    circuit.rebuild();
+    commitUndo();
     selectedBlocks = 0;
-}
-
-bool BlockManager::load_from_memory(Engine::Camera2D *camera, const char *data, int length, bool is_bson) {
-    assert(data != nullptr);
-
-    Blocks loaded;
-    float zoom;
-    glm::vec2 position;
-
-    if (is_bson) {
-        try {
-            nlohmann::json loadFile = nlohmann::json::from_bson(
-                    std::vector<std::uint8_t>(data, data + length));
-
-            zoom = loadFile["camera"]["zoom"].get<float>();
-            position.x = loadFile["camera"]["position"]["x"].get<float>();
-            position.y = loadFile["camera"]["position"]["y"].get<float>();
-
-            for (auto &it: loadFile["blocks"]) {
-                auto typeId = it["type"].get<unsigned char>();
-                auto rotation = it["rotation"].get<BlockRotation>();
-                if (typeId >= BLOCK_TYPE_COUNT || rotation > 3) {
-                    PLOGW << "Scheme contains invalid block (type " << (int) typeId << "), skipped";
-                    continue;
-                }
-                Block block(typeId, rotation);
-                block.active = it["active"].get<bool>();
-                loaded[it["pos"].get<long long>()] = block;
-            }
-        } catch (const std::exception &e) {
-            PLOGE << "Failed to parse scheme: " << e.what();
-            return false;
-        }
-    } else {
-        if (length < 16) {
-            PLOGE << "Scheme is too short: " << length << " bytes";
-            return false;
-        }
-        memcpy(&position.x, data, 4);
-        memcpy(&position.y, data + 4, 4);
-        memcpy(&zoom, data + 8, 4);
-        int size = 0;
-        memcpy(&size, data + 12, 4);
-        if (size < 0 || 16LL + (long long) size * BLOCK_RECORD_SIZE > (long long) length) {
-            PLOGE << "Scheme is truncated: " << size << " blocks in " << length << " bytes";
-            return false;
-        }
-        long long pos = 0LL;
-        for (int i = 0; i < size; i++) {
-            Block block(data + (long long) i * BLOCK_RECORD_SIZE + 16, &pos);
-            loaded[pos] = block;
-        }
-    }
-
-    camera->setZoom(zoom);
-    camera->position.x = position.x;
-    camera->position.y = position.y;
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        blocks = std::move(loaded);
-        selectedBlocks = 0;
-    }
-    return true;
 }
 
 void BlockManager::draw(Engine::Camera2D *camera) {
@@ -476,19 +479,5 @@ void BlockManager::draw(Engine::Camera2D *camera) {
         glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
         glBufferSubData(GL_ARRAY_BUFFER, 0, (long long) sizeof(BlockInfo) * j, info);
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, j);
-    }
-}
-
-void BlockManager::load_example(Engine::Camera2D *camera, const char *path) {
-    int size = 0;
-    auto data = (const char *) Engine::Filesystem::readResourceFile(path, &size);
-    if (data != nullptr && load_from_memory(camera, data, size, true)) {
-        ImGuiToast toast(ImGuiToastType_Success, 2000);
-        toast.set_title("%s loaded successfully", path);
-        ImGui::InsertNotification(toast);
-    } else {
-        ImGuiToast toast(ImGuiToastType_Error, 2000);
-        toast.set_title("Failed to load %s", path);
-        ImGui::InsertNotification(toast);
     }
 }

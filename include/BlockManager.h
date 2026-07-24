@@ -1,13 +1,10 @@
 #pragma once
 
-#include <mutex>
-#include <thread>
-#include <unordered_map>
+#include <string>
+#include <vector>
 #include <Window.h>
 #include <Camera2D.h>
-#include "Block.h"
-
-typedef std::unordered_map<long long, Block> Blocks;
+#include "Simulation.h"
 
 // Per-instance data uploaded to the GPU: packed state + grid coordinates.
 // info bits: 0 - selected, 1 - active, 2..5 - type id, 6..7 - rotation
@@ -24,23 +21,34 @@ public:
     }
 };
 
+struct UndoChange {
+    long long key{};
+    bool hadBefore{}, hasAfter{};
+    Block before, after;
+};
+
 class BlockManager {
 private:
     BlockInfo *info;
+    std::vector<std::vector<UndoChange>> undoStack, redoStack;
+    std::vector<UndoChange> pendingChanges;
 
-    void thread_tick();
+    void record(long long key, const Block *before, const Block *after);
+
+    void applyChanges(const std::vector<UndoChange> &changes, bool forward);
 
 public:
     unsigned int atlas{}, VAO{}, VBO[2];
-    Blocks blocks;
+    Circuit circuit;
+    Blocks &blocks;
     bool simulate = true;
     int TPS, selectedBlocks{};
     double tickTime{};
-    std::thread thread;
-    std::mutex mutex;
     Engine::Window *window;
     int currentBlock = 0;
     int currentRotation = 0;
+    bool dirty = false;
+    std::string currentFile;
 
     BlockManager(Engine::Window *window, const float vertices[], int count);
 
@@ -60,13 +68,11 @@ public:
 
     void rotate(int x, int y, BlockRotation rotation);
 
+    void toggle(int x, int y);
+
     int length();
 
     void update();
-
-    void setActive(int x, int y);
-
-    void setActive(int x, int y, BlockRotation rotation, int l = 1);
 
     void draw(Engine::Camera2D *camera);
 
@@ -76,7 +82,7 @@ public:
 
     bool load_from_memory(Engine::Camera2D *camera, const char *data, int length, bool is_bson = false);
 
-    void load_example(Engine::Camera2D *camera, const char *path);
+    void load_example(Engine::Camera2D *camera, const char *path, const char *title);
 
     void select_all();
 
@@ -87,4 +93,20 @@ public:
     void paste(int blockX, int blockY);
 
     void cut(int blockX, int blockY);
+
+    void export_scheme();
+
+    void import_scheme(Engine::Camera2D *camera);
+
+    void commitUndo();
+
+    void clearHistory();
+
+    void undo();
+
+    void redo();
+
+    [[nodiscard]] bool canUndo() const;
+
+    [[nodiscard]] bool canRedo() const;
 };

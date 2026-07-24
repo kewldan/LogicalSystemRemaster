@@ -22,7 +22,6 @@ class Block {
 public:
     BlockId typeId{};
     BlockRotation rotation{};
-    BlockConnectionCount connections{};
     bool active{}, selected{};
 
     Block() = default;

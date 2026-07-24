@@ -5,7 +5,9 @@
 #include "RenderPipeline.h"
 #include "Input.h"
 #include "nfd.h"
+#include <algorithm>
 #include <format>
+#include <string>
 
 bool vsync = true, hideUI = false;
 
@@ -53,6 +55,16 @@ float map(float value, float max1, float min2, float max2) {
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
+    // Resolve data/ (and logs) relative to the executable, not the caller's cwd
+    char exeDir[MAX_PATH];
+    if (GetModuleFileNameA(nullptr, exeDir, MAX_PATH) > 0) {
+        char *slash = strrchr(exeDir, '\\');
+        if (slash) {
+            *slash = 0;
+            SetCurrentDirectoryA(exeDir);
+        }
+    }
+
     Engine::Window::init();
     Engine::Window window(1280, 720, "Logical system");
     window.setIcon("data/textures/favicon.png");
@@ -115,6 +127,21 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         window.reset();
         window.setVsync(vsync);
 
+        static double tickAccumulator = 0.0;
+        if (blocks.simulate) {
+            tickAccumulator += io->DeltaTime;
+            double period = 1.0 / (double) std::clamp(blocks.TPS, 1, 1000);
+            int steps = 0;
+            while (tickAccumulator >= period && steps < 8) {
+                blocks.update();
+                tickAccumulator -= period;
+                steps++;
+            }
+            if (steps == 8) tickAccumulator = 0.0; // fell behind, do not spiral
+        } else {
+            tickAccumulator = 0.0;
+        }
+
         float cursorX = map(input.getCursorPosition().x, (float) window.width, camera.left, camera.right);
         float cursorY = map(input.getCursorPosition().y, (float) window.height, camera.bottom, camera.top);
         blockX = (int) floorf((cursorX + camera.position.x) / 32.f +
@@ -153,6 +180,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                         blocks.set(x, y);
                     }
                 }
+                blocks.commitUndo();
             }
             if (input.isKeyJustPressed(GLFW_KEY_R)) {
                 blocks.currentRotation = rotateBlock(blocks.currentRotation,
@@ -183,6 +211,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                 if (input.isKeyJustPressed(GLFW_KEY_N)) {
                     blocks.clear();
                 }
+                if (input.isKeyJustPressed(GLFW_KEY_Z)) {
+                    if (input.isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
+                        blocks.redo();
+                    } else {
+                        blocks.undo();
+                    }
+                }
+                if (input.isKeyJustPressed(GLFW_KEY_Y)) {
+                    blocks.redo();
+                }
             } else {
                 float cameraSpeed = 500.f * camera.getZoom() * camera.getZoom() * io->DeltaTime;
                 if (input.isKeyPressed(GLFW_KEY_A)) {
@@ -202,14 +240,23 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
             if (!io->WantCaptureMouse) {
                 if (input.getMouseWheelDelta().y != 0.f) {
-                    camera.zoomIn(input.getMouseWheelDelta().y * -0.1f);
+                    camera.zoomAt(input.getMouseWheelDelta().y * -0.1f,
+                                  glm::vec2(input.getCursorPosition().x / (float) window.width,
+                                            1.f - input.getCursorPosition().y / (float) window.height));
+                }
+                if (input.isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_MIDDLE)) {
+                    Block *picked = blocks.get(blockX, blockY);
+                    if (picked) {
+                        blocks.currentBlock = picked->typeId;
+                        blocks.currentRotation = picked->rotation;
+                    }
                 }
                 if (!input.isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
                     Block *block = blocks.get(blockX, blockY);
                     if (block) {
                         if (input.isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_LEFT)) {
                             if (block->typeId == BLOCK_SWITCH) {
-                                block->active ^= 1;
+                                blocks.toggle(blockX, blockY);
                             } else {
                                 blocks.rotate(blockX, blockY, rotateBlock(block->rotation, 1));
                             }
@@ -223,6 +270,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                         blocks.erase(blockX, blockY);
                     }
                 }
+            }
+
+            if (input.isMouseButtonJustReleased(GLFW_MOUSE_BUTTON_LEFT) ||
+                input.isMouseButtonJustReleased(GLFW_MOUSE_BUTTON_RIGHT)) {
+                blocks.commitUndo();
             }
         }
 
@@ -291,9 +343,19 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                             openLoadDialog(blocks, &camera);
                         if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK "  Save", "Ctrl + S"))
                             openSaveDialog(blocks, &camera);
+                        ImGui::Separator();
+                        if (ImGui::MenuItem(ICON_FA_FILE_EXPORT " Export to clipboard"))
+                            blocks.export_scheme();
+                        if (ImGui::MenuItem(ICON_FA_FILE_IMPORT " Import from clipboard"))
+                            blocks.import_scheme(&camera);
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Edit")) {
+                        if (ImGui::MenuItem(ICON_FA_ROTATE_LEFT " Undo", "Ctrl + Z", false, blocks.canUndo()))
+                            blocks.undo();
+                        if (ImGui::MenuItem(ICON_FA_ROTATE_RIGHT " Redo", "Ctrl + Y", false, blocks.canRedo()))
+                            blocks.redo();
+                        ImGui::Separator();
                         if (ImGui::MenuItem(ICON_FA_COPY " Copy", "Ctrl + C"))
                             blocks.copy(blockX, blockY);
                         if (ImGui::MenuItem(ICON_FA_PASTE " Paste", "Ctrl + V"))
@@ -304,6 +366,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                             blocks.select_all();
                         if (ImGui::MenuItem(ICON_FA_TRASH_CAN " Delete", "DELETE"))
                             blocks.delete_selected();
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::BeginMenu("Examples")) {
+                        if (ImGui::MenuItem(ICON_FA_LIGHTBULB " Blinker"))
+                            blocks.load_example(&camera, "data/examples/blinker.bson", "Blinker");
+                        if (ImGui::MenuItem("Logic gates"))
+                            blocks.load_example(&camera, "data/examples/gates.bson", "Logic gates");
+                        if (ImGui::MenuItem("RS latch"))
+                            blocks.load_example(&camera, "data/examples/rs-latch.bson", "RS latch");
+                        if (ImGui::MenuItem("Full adder"))
+                            blocks.load_example(&camera, "data/examples/full-adder.bson", "Full adder");
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Graphics")) {
@@ -318,7 +391,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                         if (ImGui::MenuItem("Source code"))
                             ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                          nullptr, SW_SHOW);
-                        static const std::string versionString = std::format("Version: 2.0.9 ({})", __DATE__);
+                        static const std::string versionString = std::format("Version: {} ({})", LS_VERSION, __DATE__);
                         ImGui::MenuItem(versionString.c_str(), nullptr, nullptr, false);
                         ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
                         ImGui::EndMenu();
@@ -355,8 +428,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             ImGui::End();
         }
         Engine::HUD::end();
+
+        static std::string lastTitle;
+        std::string schemeName = blocks.currentFile.empty() ? "untitled" : blocks.currentFile;
+        size_t nameStart = schemeName.find_last_of("/\\");
+        if (nameStart != std::string::npos) schemeName.erase(0, nameStart + 1);
+        std::string title = std::format("Logical system - {}{}", schemeName, blocks.dirty ? "*" : "");
+        if (title != lastTitle) {
+            window.setTitle(title.c_str());
+            lastTitle = title;
+        }
     } while (window.update());
-    blocks.thread.join();
     Engine::HUD::destroy();
     return 0;
 }
