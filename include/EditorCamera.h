@@ -19,6 +19,8 @@ public:
     // framebuffer coordinates: x from the left, y from the bottom.
     void addZoomInput(float scrollDelta, glm::vec2 anchor);
 
+    void frameWorldBounds(float minX, float minY, float maxX, float maxY);
+
     [[nodiscard]] const glm::mat4 &getView() const;
 
     [[nodiscard]] const glm::mat4 &getProjection() const;

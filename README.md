@@ -12,7 +12,7 @@
 [![itch.io](https://img.shields.io/badge/itch.io-logical--system-fa5c5c?style=flat&logo=itchdotio&logoColor=white)](https://kewldan.itch.io/logical-system)
 [![build](https://github.com/kewldan/LogicalSystemRemaster/actions/workflows/build.yml/badge.svg)](https://github.com/kewldan/LogicalSystemRemaster/actions/workflows/build.yml)
 
-A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.2.2). Place logic blocks on an infinite 2D grid, wire them together and simulate whole devices — from a single gate to adders and RAM.
+A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.3.0). Place logic blocks on an infinite 2D grid, wire them together and simulate whole devices — from a single gate to adders and RAM.
 
 ## ✨ Features
 
@@ -23,10 +23,10 @@ A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.2.2).
 - ↩️ **Undo / redo** — Ctrl+Z / Ctrl+Y with gesture grouping: a paint stroke, paste or mass delete is one step
 - 🚀 **Batched instanced rendering** — 12-byte instances from a texture atlas, chunked culling so only visible chunks are walked
 - 🌟 **HDR bloom** — active blocks glow via a half-resolution ping-pong Gaussian blur (can be toggled off)
-- 💾 **Save / load schemes** — silent Ctrl+S, Save As, unsaved-changes protection; corrupted files are rejected without losing the current scheme
+- 💾 **Safe project workflow** — autosave with crash recovery, recent files, silent Ctrl+S, Save As and unsaved-changes protection; corrupted files are rejected without losing the current scheme
 - ✂️ **Clipboard workflow** — box-select, copy, cut, paste, select-all, mass delete, plus whole-scheme export/import as a text string you can share anywhere
-- ⚙️ **Persistent settings** — window size, VSync, bloom and TPS are stored in `settings.json`
-- 🖥️ **Clean ImGui HUD** — FPS / tick-time overlay, block & rotation pickers, toast notifications, hideable UI
+- ⚙️ **Persistent settings** — window size, VSync, bloom, TPS and recent files are stored in the platform's user-data directory
+- 🖥️ **Visual editor HUD** — icon palette with rules, block inspector under the cursor, FPS / tick-time overlay, toast notifications and hideable UI
 
 ## 📷 Screenshots
 
@@ -42,7 +42,9 @@ A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.2.2).
 | Input | Action |
 |---|---|
 | `W` `A` `S` `D` | Pan the camera |
+| `Space` + drag | Pan the camera directly |
 | Mouse wheel / touchpad | Smooth zoom to cursor |
+| `F` / `Shift` + `F` | Frame the whole scheme / selected blocks |
 | `LMB` | Place block (drag paints wire traces) / toggle switch / rotate block; drag a selected block to move the selection |
 | `RMB` | Erase block |
 | `MMB` | Pick block type and rotation under cursor |

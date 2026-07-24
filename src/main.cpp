@@ -1,5 +1,7 @@
 ﻿#include "Window.h"
 #include "HUD.h"
+#include "AppStorage.h"
+#include "BlockCatalog.h"
 #include "BlockManager.h"
 #include "EditorCamera.h"
 #include "RenderPipeline.h"
@@ -10,9 +12,7 @@
 #include <cstring>
 #include <filesystem>
 #include <format>
-#include <fstream>
 #include <string>
-#include <nlohmann/json.hpp>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -29,63 +29,40 @@
 bool vsync = true, hideUI = false;
 static const nfdfilteritem_t schemeFilter[] = {{"Logical System schemes", "bson,ls"}};
 
-struct AppSettings {
-    int width = 1280, height = 720, tps = 8;
-    bool vsync = true, bloom = true;
-};
-
-static AppSettings loadSettings() {
-    AppSettings s;
-    try {
-        std::ifstream file("settings.json");
-        if (file.good()) {
-            nlohmann::json j = nlohmann::json::parse(file);
-            s.width = std::clamp(j.value("width", s.width), 640, 7680);
-            s.height = std::clamp(j.value("height", s.height), 480, 4320);
-            s.tps = std::clamp(j.value("tps", s.tps), 1, 256);
-            s.vsync = j.value("vsync", s.vsync);
-            s.bloom = j.value("bloom", s.bloom);
-        }
-    } catch (const std::exception &e) {
-        PLOGW << "settings.json is invalid: " << e.what();
+static bool loadSchemePath(BlockManager &blocks, EditorCamera *camera, const std::string &path,
+                           AppStorage &storage, AppSettings &settings) {
+    ImGuiToast toast(0);
+    if (blocks.load(camera, path.c_str())) {
+        storage.rememberRecentFile(settings, path);
+        storage.saveSettings(settings);
+        storage.clearRecovery();
+        toast.set_type(ImGuiToastType_Success);
+        toast.set_title("%s loaded successfully", path.c_str());
+        ImGui::InsertNotification(toast);
+        return true;
     }
-    return s;
+
+    toast.set_type(ImGuiToastType_Error);
+    toast.set_title("%s was not loaded!", path.c_str());
+    ImGui::InsertNotification(toast);
+    return false;
 }
 
-static void saveSettings(const AppSettings &s) {
-    nlohmann::json j{
-            {"width",  s.width},
-            {"height", s.height},
-            {"tps",    s.tps},
-            {"vsync",  s.vsync},
-            {"bloom",  s.bloom}
-    };
-    std::ofstream file("settings.json");
-    file << j.dump(2);
-}
-
-void openLoadDialog(BlockManager &blocks, EditorCamera *camera) {
+void openLoadDialog(BlockManager &blocks, EditorCamera *camera,
+                    AppStorage &storage, AppSettings &settings) {
     nfdchar_t *loadPath;
     nfdresult_t loadResult = NFD_OpenDialog(&loadPath, schemeFilter, 1, nullptr);
 
     if (loadResult == NFD_OKAY) {
-        ImGuiToast toast(0);
-        if (blocks.load(camera, loadPath)) {
-            toast.set_type(ImGuiToastType_Success);
-            toast.set_title("%s loaded successfully", loadPath);
-        } else {
-            toast.set_type(ImGuiToastType_Error);
-            toast.set_title("%s was not loaded!", loadPath);
-        }
-        ImGui::InsertNotification(toast);
-
+        loadSchemePath(blocks, camera, loadPath, storage, settings);
         NFD_FreePath(loadPath);
     }
 }
 
 // Saves silently into the current file; shows the dialog only for a new
 // scheme or when forceDialog is set (Save As). Returns true when saved.
-bool saveScheme(BlockManager &blocks, EditorCamera *camera, bool forceDialog) {
+bool saveScheme(BlockManager &blocks, EditorCamera *camera, bool forceDialog,
+                AppStorage &storage, AppSettings &settings) {
     std::string path = blocks.currentFile;
     if (forceDialog || path.empty()) {
         nfdchar_t *savePath = nullptr;
@@ -98,6 +75,9 @@ bool saveScheme(BlockManager &blocks, EditorCamera *camera, bool forceDialog) {
     bool ok = blocks.save(camera, path.c_str());
     ImGuiToast toast(0);
     if (ok) {
+        storage.rememberRecentFile(settings, path);
+        storage.saveSettings(settings);
+        storage.clearRecovery();
         toast.set_type(ImGuiToastType_Success);
         toast.set_title("%s saved", path.c_str());
     } else {
@@ -113,7 +93,7 @@ float map(float value, float max1, float min2, float max2) {
 }
 
 enum class PendingAction {
-    None, NewScheme, OpenScheme, Exit
+    None, NewScheme, OpenScheme, OpenRecent, Exit
 };
 
 static void setWorkingDirectoryToExecutable() {
@@ -154,7 +134,8 @@ int main() {
     setWorkingDirectoryToExecutable();
     if (NFD_Init() != NFD_OKAY) return 1;
 
-    AppSettings settings = loadSettings();
+    AppStorage storage;
+    AppSettings settings = storage.loadSettings();
     vsync = settings.vsync;
 
     Engine::Window::init();
@@ -213,18 +194,31 @@ int main() {
     int blockX, blockY;
     bool running = true;
     PendingAction pending = PendingAction::None;
-    bool painting = false, movingSelection = false;
+    bool painting = false, movingSelection = false, panning = false;
+    bool showRecovery = storage.hasRecovery();
+    std::string pendingRecentFile;
     int lastPaintX = 0, lastPaintY = 0, moveStartX = 0, moveStartY = 0;
+    glm::vec2 panStartCursor{}, panStartCamera{};
+    std::uint64_t lastAutosavedRevision = blocks.revision();
+    double nextAutosave = glfwGetTime() + 5.0;
 
     auto executeAction = [&](PendingAction action) {
         switch (action) {
             case PendingAction::NewScheme:
                 blocks.clear();
+                storage.clearRecovery();
                 break;
             case PendingAction::OpenScheme:
-                openLoadDialog(blocks, &camera);
+                openLoadDialog(blocks, &camera, storage, settings);
+                break;
+            case PendingAction::OpenRecent:
+                if (!pendingRecentFile.empty()) {
+                    loadSchemePath(blocks, &camera, pendingRecentFile, storage, settings);
+                    pendingRecentFile.clear();
+                }
                 break;
             case PendingAction::Exit:
+                storage.clearRecovery();
                 running = false;
                 break;
             default:
@@ -237,6 +231,10 @@ int main() {
         } else {
             executeAction(action);
         }
+    };
+    auto requestRecent = [&](const std::string &path) {
+        pendingRecentFile = path;
+        request(PendingAction::OpenRecent);
     };
 
     // Draws straight wires along an orthogonal path (x first, then y),
@@ -277,6 +275,24 @@ int main() {
         };
         const glm::vec2 cursorPosition = toFramebuffer(input.getCursorPosition());
 
+        const bool panGesture = !io->WantCaptureMouse && input.isKeyPressed(GLFW_KEY_SPACE);
+        if (!panning && panGesture && input.isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_LEFT)) {
+            panning = true;
+            panStartCursor = cursorPosition;
+            panStartCamera = glm::vec2(camera.position);
+            painting = false;
+        }
+        if (panning) {
+            if (panGesture && input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
+                const glm::vec2 delta = cursorPosition - panStartCursor;
+                const float viewScale = 2.f * camera.getZoom() - 1.f;
+                camera.position.x = panStartCamera.x - delta.x * viewScale;
+                camera.position.y = panStartCamera.y + delta.y * viewScale;
+            } else {
+                panning = false;
+            }
+        }
+
         // Feed scroll into the spring before updating the camera so both a
         // wheel tick and a touchpad gesture are visible in this same frame.
         if (!io->WantCaptureMouse && input.getMouseWheelDelta().y != 0.f) {
@@ -310,7 +326,7 @@ int main() {
         blockY = (int) floorf((((float) window.height - cursorY) + camera.position.y) / 32.f +
                               0.5f);
 
-        bool showGhost = !io->WantCaptureMouse && !hideUI && !blocks.pasting && !movingSelection &&
+        bool showGhost = !io->WantCaptureMouse && !hideUI && !blocks.pasting && !movingSelection && !panning &&
                          !input.isDragging() && !blocks.has(blockX, blockY);
 
         pipeline.beginPass(&camera, blocks.atlas, blocks.VAO, [&]() {
@@ -389,7 +405,7 @@ int main() {
             #endif
             if (primaryShortcutModifier) {
                 if (input.isKeyJustPressed(GLFW_KEY_S)) {
-                    saveScheme(blocks, &camera, input.isKeyPressed(GLFW_KEY_LEFT_SHIFT));
+                    saveScheme(blocks, &camera, input.isKeyPressed(GLFW_KEY_LEFT_SHIFT), storage, settings);
                 }
                 if (input.isKeyJustPressed(GLFW_KEY_O)) {
                     request(PendingAction::OpenScheme);
@@ -420,6 +436,17 @@ int main() {
                     blocks.redo();
                 }
             } else {
+                if (input.isKeyJustPressed(GLFW_KEY_F)) {
+                    const bool selectedOnly = input.isKeyPressed(GLFW_KEY_LEFT_SHIFT) && blocks.selectedBlocks > 0;
+                    auto target = blocks.bounds(selectedOnly);
+                    if (!target && selectedOnly) target = blocks.bounds(false);
+                    if (target) {
+                        camera.frameWorldBounds(target->minX * 32.f - 16.f,
+                                                target->minY * 32.f - 16.f,
+                                                target->maxX * 32.f + 16.f,
+                                                target->maxY * 32.f + 16.f);
+                    }
+                }
                 float cameraSpeed = 500.f * camera.getZoom() * camera.getZoom() * io->DeltaTime;
                 if (input.isKeyPressed(GLFW_KEY_A)) {
                     camera.position.x -= cameraSpeed;
@@ -436,7 +463,7 @@ int main() {
                 }
             }
 
-            if (!io->WantCaptureMouse) {
+            if (!io->WantCaptureMouse && !panning && !panGesture) {
                 if (input.isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_MIDDLE)) {
                     Block *picked = blocks.get(blockX, blockY);
                     if (picked) {
@@ -533,7 +560,43 @@ int main() {
             ImGui::InsertNotification(toast);
         }
 
+        const double now = glfwGetTime();
+        if (now >= nextAutosave) {
+            nextAutosave = now + 5.0;
+            if (blocks.dirty && blocks.revision() != lastAutosavedRevision) {
+                if (blocks.saveSnapshot(&camera, storage.recoveryPath().string().c_str())) {
+                    lastAutosavedRevision = blocks.revision();
+                }
+            }
+        }
+
         Engine::HUD::begin();
+
+        if (showRecovery && !ImGui::IsPopupOpen("Recover autosave")) {
+            ImGui::OpenPopup("Recover autosave");
+        }
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
+                                ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        if (ImGui::BeginPopupModal("Recover autosave", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::TextUnformatted("An autosaved scheme from the previous session was found.");
+            ImGui::TextUnformatted("Recover it or discard the recovery copy.");
+            ImGui::Spacing();
+            if (ImGui::Button("Recover")) {
+                if (blocks.load(&camera, storage.recoveryPath().string().c_str())) {
+                    blocks.currentFile.clear();
+                    blocks.dirty = true;
+                    showRecovery = false;
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Discard")) {
+                storage.clearRecovery();
+                showRecovery = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
 
         if (pending != PendingAction::None && !ImGui::IsPopupOpen("Unsaved changes")) {
             ImGui::OpenPopup("Unsaved changes");
@@ -544,7 +607,7 @@ int main() {
             ImGui::Text("The current scheme has unsaved changes.");
             ImGui::Spacing();
             if (ImGui::Button(ICON_FA_FLOPPY_DISK " Save")) {
-                if (saveScheme(blocks, &camera, false)) {
+                if (saveScheme(blocks, &camera, false, storage, settings)) {
                     PendingAction action = pending;
                     pending = PendingAction::None;
                     ImGui::CloseCurrentPopup();
@@ -589,9 +652,22 @@ int main() {
                         if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " Open", PRIMARY_SHORTCUT_MODIFIER " + O"))
                             request(PendingAction::OpenScheme);
                         if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK "  Save", PRIMARY_SHORTCUT_MODIFIER " + S"))
-                            saveScheme(blocks, &camera, false);
+                            saveScheme(blocks, &camera, false, storage, settings);
                         if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK "  Save As...", PRIMARY_SHORTCUT_MODIFIER " + Shift + S"))
-                            saveScheme(blocks, &camera, true);
+                            saveScheme(blocks, &camera, true, storage, settings);
+                        if (ImGui::BeginMenu("Recent files", !settings.recentFiles.empty())) {
+                            const auto recentFiles = settings.recentFiles;
+                            for (const std::string &recent: recentFiles) {
+                                std::error_code fileError;
+                                const bool exists = std::filesystem::is_regular_file(recent, fileError);
+                                const std::string label = std::filesystem::path(recent).filename().string();
+                                if (ImGui::MenuItem(label.c_str(), nullptr, false, exists)) {
+                                    requestRecent(recent);
+                                }
+                                if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", recent.c_str());
+                            }
+                            ImGui::EndMenu();
+                        }
                         ImGui::Separator();
                         if (ImGui::MenuItem(ICON_FA_FILE_EXPORT " Export to clipboard"))
                             blocks.export_scheme();
@@ -660,13 +736,50 @@ int main() {
                     ImGui::Text("Simulation ticks per second");
                     ImGui::EndTooltip();
                 }
-                ImGui::Combo("Block", &blocks.currentBlock,
-                             "Wire straight\0Wire angled right\0Wire angled left\0Wire T\0Wire cross\0Wire 2\0Wire 3\0NOT\0AND\0NAND\0XOR\0NXOR\0Switch\0Clock\0Lamp\0Button\0");
-                if (ImGui::IsItemHovered()) {
+                ImGui::SeparatorText("Blocks");
+                const ImTextureRef palette(static_cast<ImTextureID>(blocks.paletteTexture));
+                int hoveredPaletteBlock = -1;
+                for (int id = 0; id < BLOCK_TYPE_COUNT; id++) {
+                    if (id % 4 != 0) ImGui::SameLine();
+                    const bool selected = blocks.currentBlock == id;
+                    if (selected) {
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+                    }
+                    const float v0 = static_cast<float>(id) / BLOCK_TYPE_COUNT;
+                    const float v1 = static_cast<float>(id + 1) / BLOCK_TYPE_COUNT;
+                    const std::string buttonId = std::format("##block-{}", id);
+                    if (ImGui::ImageButton(buttonId.c_str(), palette, ImVec2(32, 32),
+                                           ImVec2(0, v0), ImVec2(1, v1))) {
+                        blocks.currentBlock = id;
+                    }
+                    if (selected) ImGui::PopStyleColor();
+                    if (ImGui::IsItemHovered()) hoveredPaletteBlock = id;
+                }
+                if (hoveredPaletteBlock >= 0) {
+                    const auto &description = describeBlock(static_cast<BlockId>(hoveredPaletteBlock));
+                    constexpr float tooltipWidth = 280.f;
+                    ImVec2 tooltipPosition = ImGui::GetMousePos();
+                    tooltipPosition.x += 18.f;
+                    tooltipPosition.y += 18.f;
+                    const ImGuiViewport *viewport = ImGui::GetMainViewport();
+                    tooltipPosition.x = std::min(tooltipPosition.x,
+                                                 viewport->WorkPos.x + viewport->WorkSize.x - tooltipWidth);
+                    tooltipPosition.y = std::min(tooltipPosition.y,
+                                                 viewport->WorkPos.y + viewport->WorkSize.y - 120.f);
+                    ImGui::SetNextWindowPos(tooltipPosition, ImGuiCond_Always);
+                    ImGui::SetNextWindowSizeConstraints(ImVec2(tooltipWidth, 0.f),
+                                                        ImVec2(tooltipWidth, 1000.f));
                     ImGui::BeginTooltip();
-                    ImGui::Text("Use 0-9 for 0-9 elements\nand SHIFT for 10-15 elements");
+                    ImGui::TextUnformatted(description.name);
+                    ImGui::Separator();
+                    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + tooltipWidth - 24.f);
+                    ImGui::TextUnformatted(description.rule);
+                    ImGui::PopTextWrapPos();
                     ImGui::EndTooltip();
                 }
+                const auto &currentDescription = describeBlock(static_cast<BlockId>(blocks.currentBlock));
+                ImGui::TextUnformatted(currentDescription.name);
+                ImGui::TextDisabled("0-9 select blocks; hold Shift for 10-15");
                 ImGui::Combo("Rotation", &blocks.currentRotation, "Up\0Right\0Down\0Left\0");
                 if (ImGui::IsItemHovered()) {
                     ImGui::BeginTooltip();
@@ -675,6 +788,28 @@ int main() {
                 }
             }
             ImGui::End();
+        }
+
+        if (!hideUI && !io->WantCaptureMouse) {
+            if (const Block *hovered = blocks.get(blockX, blockY)) {
+                static constexpr const char *rotations[] = {"Up", "Right", "Down", "Left"};
+                const auto &description = describeBlock(hovered->typeId);
+                const glm::vec2 logicalCursor = input.getCursorPosition();
+                ImGui::SetNextWindowPos(ImVec2(logicalCursor.x + 18.f, logicalCursor.y + 18.f),
+                                        ImGuiCond_Always);
+                ImGui::SetNextWindowBgAlpha(0.92f);
+                if (ImGui::Begin("##Block inspector", nullptr,
+                                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                                 ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs)) {
+                    ImGui::TextUnformatted(description.name);
+                    ImGui::TextDisabled("Cell %d, %d", blockX, blockY);
+                    ImGui::Separator();
+                    ImGui::Text("State: %s", hovered->active ? "ON" : "OFF");
+                    ImGui::Text("Direction: %s", rotations[hovered->rotation & 3]);
+                    ImGui::TextWrapped("%s", description.rule);
+                }
+                ImGui::End();
+            }
         }
         Engine::HUD::end();
 
@@ -703,7 +838,7 @@ int main() {
     settings.tps = blocks.TPS;
     settings.vsync = vsync;
     settings.bloom = pipeline.bloom;
-    saveSettings(settings);
+    storage.saveSettings(settings);
 
     Engine::HUD::destroy();
     NFD_Quit();

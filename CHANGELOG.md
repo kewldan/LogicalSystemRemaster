@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.3.0 — 2026-07-25
+
+### Added
+
+- Autosave writes a recovery copy after edits and offers Recover / Discard on the next launch after an interrupted session.
+- The File menu now keeps the eight most recently opened or saved schemes.
+- A visual 4×4 block palette replaces the text-only picker; every icon has a short behavior tooltip.
+- Hovering a block shows its type, coordinates, live state, direction and logic rule.
+- `F` frames the entire scheme, `Shift+F` frames the selection, and `Space` + left-drag pans the canvas.
+
+### Changed
+
+- Settings and recovery files now live in the platform user-data directory instead of inside the application bundle or beside the executable.
+
 ## Последний месяц — июль 2026
 
 - Добавлены кнопка, ghost-preview, рисование проводов, перемещение и поворот выделения, undo/redo, paste под курсором и защита от несохранённых изменений.

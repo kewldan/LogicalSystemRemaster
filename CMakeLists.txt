@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 project(LogicalSystem
         HOMEPAGE_URL https://kewldan.itch.io/logical-system
-        VERSION 2.2.2
+        VERSION 2.3.0
         LANGUAGES CXX
 )
 
@@ -71,7 +71,7 @@ endif ()
 
 target_compile_definitions(LogicalSystem PRIVATE BLOCK_BATCHING=8192 LS_VERSION="${PROJECT_VERSION}")
 target_include_directories(LogicalSystem PRIVATE include ${Stb_INCLUDE_DIR})
-target_link_libraries(LogicalSystem PRIVATE Engine glad::glad glfw glm::glm plog::plog ZLIB::ZLIB aklomp::base64 imgui::imgui nfd::nfd)
+target_link_libraries(LogicalSystem PRIVATE Engine glad::glad glfw glm::glm plog::plog ZLIB::ZLIB aklomp::base64 imgui::imgui nfd::nfd nlohmann_json::nlohmann_json)
 
 # Runtime asset lookup is relative to the executable on every platform. For a
 # macOS bundle that means Contents/MacOS/data, not Contents/Resources/data.
@@ -84,6 +84,9 @@ enable_testing()
 add_executable(LogicalSystemTests
         tests/tests.cpp
         src/Block.cpp
+        src/AppStorage.cpp
+        src/BlockCatalog.cpp
+        src/CameraFrame.cpp
         src/Simulation.cpp
         src/Scheme.cpp
         src/SmoothZoom.cpp

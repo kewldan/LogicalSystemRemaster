@@ -3,9 +3,13 @@
 #include <doctest/doctest.h>
 
 #include <fstream>
+#include <filesystem>
 #include <iterator>
 #include <vector>
 
+#include "AppStorage.h"
+#include "BlockCatalog.h"
+#include "CameraFrame.h"
 #include "ChunkIndex.h"
 #include "Scheme.h"
 #include "SmoothZoom.h"
@@ -95,6 +99,54 @@ TEST_CASE("zoom approaches its target smoothly without overshooting") {
         previous = current;
     }
     CHECK(zoom.value() == doctest::Approx(target).epsilon(0.0001));
+}
+
+TEST_CASE("camera framing centers content and respects zoom limits") {
+    const CameraFrame frame = calculateCameraFrame(-16.f, -16.f, 16.f, 16.f, 1280, 720);
+    CHECK(frame.positionX == doctest::Approx(-640.f));
+    CHECK(frame.positionY == doctest::Approx(-360.f));
+    CHECK(frame.zoom == doctest::Approx(SmoothZoom::MIN_ZOOM));
+
+    const CameraFrame wide = calculateCameraFrame(-1600.f, -16.f, 1600.f, 16.f, 800, 600, 50.f);
+    CHECK(wide.positionX == doctest::Approx(-400.f));
+    CHECK(wide.positionY == doctest::Approx(-300.f));
+    CHECK(wide.zoom > 1.f);
+    CHECK(wide.zoom <= SmoothZoom::MAX_ZOOM);
+}
+
+TEST_CASE("recent files are normalized, deduplicated and capped") {
+    const auto directory = std::filesystem::temp_directory_path() / "logical-system-storage-test";
+    std::error_code error;
+    std::filesystem::remove_all(directory, error);
+    AppStorage storage(directory);
+    AppSettings settings;
+    storage.rememberRecentFile(settings, "./first.bson");
+    storage.rememberRecentFile(settings, "./second.bson");
+    storage.rememberRecentFile(settings, "./first.bson");
+    CHECK(settings.recentFiles.size() == 2);
+    CHECK(std::filesystem::path(settings.recentFiles.front()).filename() == "first.bson");
+
+    for (int i = 0; i < 12; i++) {
+        storage.rememberRecentFile(settings, "scheme-" + std::to_string(i) + ".bson");
+    }
+    CHECK(settings.recentFiles.size() == 8);
+    CHECK(std::filesystem::path(settings.recentFiles.front()).filename() == "scheme-11.bson");
+
+    settings.width = 1920;
+    settings.tps = 42;
+    CHECK(storage.saveSettings(settings));
+    const AppSettings loaded = storage.loadSettings();
+    CHECK(loaded.width == 1920);
+    CHECK(loaded.tps == 42);
+    CHECK(loaded.recentFiles == settings.recentFiles);
+    std::filesystem::remove_all(directory, error);
+}
+
+TEST_CASE("every block has palette metadata") {
+    for (BlockId id = 0; id < BLOCK_TYPE_COUNT; id++) {
+        CHECK(describeBlock(id).name[0] != '\0');
+        CHECK(describeBlock(id).rule[0] != '\0');
+    }
 }
 
 TEST_CASE("isBlockActive truth tables") {

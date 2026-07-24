@@ -1,4 +1,5 @@
 #include "EditorCamera.h"
+#include "CameraFrame.h"
 
 #include <algorithm>
 #include <GLFW/glfw3.h>
@@ -44,6 +45,14 @@ void EditorCamera::setZoom(float newZoom) {
 void EditorCamera::addZoomInput(float scrollDelta, glm::vec2 anchor) {
     zoomAnchor = glm::clamp(anchor, glm::vec2(0.f), glm::vec2(1.f));
     zoom.addScroll(scrollDelta);
+}
+
+void EditorCamera::frameWorldBounds(float minX, float minY, float maxX, float maxY) {
+    const CameraFrame frame = calculateCameraFrame(minX, minY, maxX, maxY,
+                                                   window->width, window->height);
+    position.x = frame.positionX;
+    position.y = frame.positionY;
+    setZoom(frame.zoom);
 }
 
 const glm::mat4 &EditorCamera::getView() const {

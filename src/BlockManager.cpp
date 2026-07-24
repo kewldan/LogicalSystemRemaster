@@ -5,8 +5,10 @@
 #include <algorithm>
 #include <chrono>
 #include <climits>
+#include <filesystem>
 #include <imgui_notify.h>
 #include <libbase64.h>
+#include <vector>
 
 static constexpr size_t UNDO_LIMIT = 200;
 
@@ -31,6 +33,30 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
                      32, 32, BLOCK_TYPE_COUNT, 0,
                      GL_RGBA, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+
+        glGenTextures(1, &paletteTexture);
+        glBindTexture(GL_TEXTURE_2D, paletteTexture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        std::vector<unsigned char> paletteData(data, data + width * height * 4);
+        constexpr float symbolColor[3] = {235.f, 79.f, 51.f};
+        for (std::size_t i = 0; i < paletteData.size(); i += 4) {
+            // Atlas alpha is a material mask consumed by the world shader,
+            // not display transparency. Preserve the atlas artwork where the
+            // mask is opaque, and replace its transparent symbol with the
+            // palette blue before forcing the finished thumbnail opaque.
+            const float mask = static_cast<float>(paletteData[i + 3]) / 255.f;
+            for (int channel = 0; channel < 3; channel++) {
+                paletteData[i + channel] = static_cast<unsigned char>(
+                        symbolColor[channel] +
+                        (static_cast<float>(paletteData[i + channel]) - symbolColor[channel]) * mask);
+            }
+            paletteData[i + 3] = 255;
+        }
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, paletteData.data());
     } else {
         PLOGE << "Failed to load texture [blocks.png]";
         PLOGE << stbi_failure_reason();
@@ -68,6 +94,10 @@ BlockManager::BlockManager(Engine::Window *window, const float vertices[], int c
 
 BlockManager::~BlockManager() {
     delete[] info;
+    glDeleteTextures(1, &paletteTexture);
+    glDeleteTextures(1, &atlas);
+    glDeleteBuffers(2, VBO);
+    glDeleteVertexArrays(1, &VAO);
 }
 
 void BlockManager::record(long long key, const Block *before, const Block *after) {
@@ -79,6 +109,7 @@ void BlockManager::record(long long key, const Block *before, const Block *after
     if (after) change.after = *after;
     pendingChanges.push_back(change);
     dirty = true;
+    editRevision++;
 }
 
 void BlockManager::commitUndo() {
@@ -122,6 +153,7 @@ void BlockManager::undo() {
     chunkIndex.rebuild(blocks);
     circuit.rebuild();
     dirty = true;
+    editRevision++;
 }
 
 void BlockManager::redo() {
@@ -132,6 +164,7 @@ void BlockManager::redo() {
     chunkIndex.rebuild(blocks);
     circuit.rebuild();
     dirty = true;
+    editRevision++;
 }
 
 bool BlockManager::canUndo() const {
@@ -217,15 +250,22 @@ void BlockManager::update() {
 }
 
 bool BlockManager::save(EditorCamera *camera, const char *path) {
+    if (!saveSnapshot(camera, path)) return false;
+    currentFile = path;
+    dirty = false;
+    return true;
+}
+
+bool BlockManager::saveSnapshot(EditorCamera *camera, const char *path) const {
     assert(path != nullptr);
+    std::error_code error;
+    const auto parent = std::filesystem::path(path).parent_path();
+    if (!parent.empty()) std::filesystem::create_directories(parent, error);
+    if (error) return false;
+
     SchemeCamera schemeCamera{camera->position.x, camera->position.y, camera->getZoom()};
     auto binary = schemeToBson(blocks, schemeCamera);
-    bool ok = Engine::Filesystem::writeFile(path, reinterpret_cast<const char *>(binary.data()), binary.size());
-    if (ok) {
-        currentFile = path;
-        dirty = false;
-    }
-    return ok;
+    return Engine::Filesystem::writeFile(path, reinterpret_cast<const char *>(binary.data()), binary.size());
 }
 
 inline bool ends_with(const char *value, const char *ending) {
@@ -437,6 +477,7 @@ void BlockManager::import_scheme(EditorCamera *camera) {
         clearHistory();
         selectedBlocks = 0;
         dirty = true;
+        editRevision++;
         camera->position = glm::vec3(0.f);
         toast.set_type(ImGuiToastType_Success);
         toast.set_title("Scheme imported (%d blocks)", (int) count);
@@ -602,4 +643,24 @@ void BlockManager::drawSelectionGhost(int dx, int dy) {
                           Block_X(it.first) + dx, Block_Y(it.first) + dy);
     }
     drawInstances(list);
+}
+
+std::uint64_t BlockManager::revision() const {
+    return editRevision;
+}
+
+std::optional<BlockBounds> BlockManager::bounds(bool selectedOnly) const {
+    BlockBounds result{INT_MAX, INT_MAX, INT_MIN, INT_MIN};
+    bool found = false;
+    for (const auto &entry: blocks) {
+        if (selectedOnly && !entry.second.selected) continue;
+        const int x = Block_X(entry.first);
+        const int y = Block_Y(entry.first);
+        result.minX = std::min(result.minX, x);
+        result.minY = std::min(result.minY, y);
+        result.maxX = std::max(result.maxX, x);
+        result.maxY = std::max(result.maxY, y);
+        found = true;
+    }
+    return found ? std::optional<BlockBounds>(result) : std::nullopt;
 }

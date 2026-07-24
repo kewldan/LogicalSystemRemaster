@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 #include <Window.h>
@@ -28,12 +30,17 @@ struct UndoChange {
     Block before, after;
 };
 
+struct BlockBounds {
+    int minX{}, minY{}, maxX{}, maxY{};
+};
+
 class BlockManager {
 private:
     BlockInfo *info;
     ChunkIndex chunkIndex;
     std::vector<std::vector<UndoChange>> undoStack, redoStack;
     std::vector<UndoChange> pendingChanges;
+    std::uint64_t editRevision{};
 
     void record(long long key, const Block *before, const Block *after);
 
@@ -42,7 +49,7 @@ private:
     void drawInstances(const std::vector<BlockInfo> &list);
 
 public:
-    unsigned int atlas{}, VAO{}, VBO[2];
+    unsigned int atlas{}, paletteTexture{}, VAO{}, VBO[2];
     Circuit circuit;
     Blocks &blocks;
     bool simulate = true;
@@ -83,6 +90,8 @@ public:
     void draw(EditorCamera *camera);
 
     bool save(EditorCamera *camera, const char *path);
+
+    bool saveSnapshot(EditorCamera *camera, const char *path) const;
 
     bool load(EditorCamera *camera, const char *path);
 
@@ -131,4 +140,8 @@ public:
     [[nodiscard]] bool canUndo() const;
 
     [[nodiscard]] bool canRedo() const;
+
+    [[nodiscard]] std::uint64_t revision() const;
+
+    [[nodiscard]] std::optional<BlockBounds> bounds(bool selectedOnly = false) const;
 };
