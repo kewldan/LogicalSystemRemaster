@@ -10,17 +10,20 @@
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=flat&logo=windows&logoColor=white)](#)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat)](LICENSE)
 [![itch.io](https://img.shields.io/badge/itch.io-logical--system-fa5c5c?style=flat&logo=itchdotio&logoColor=white)](https://kewldan.itch.io/logical-system)
+[![build](https://github.com/kewldan/LogicalSystemRemaster/actions/workflows/build.yml/badge.svg)](https://github.com/kewldan/LogicalSystemRemaster/actions/workflows/build.yml)
 
-A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.0.9). Place logic blocks on an infinite 2D grid, wire them together and simulate whole devices — from a single gate to adders and RAM.
+A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.1.0). Place logic blocks on an infinite 2D grid, wire them together and simulate whole devices — from a single gate to adders and RAM.
 
 ## ✨ Features
 
 - 🧩 **15 block types** — 7 wire variants (straight, angled, T, cross, ...), NOT, AND, NAND, XOR, NXOR, Switch, Clock and Lamp
-- ⚡ **Multithreaded simulation** — the circuit ticks on a dedicated thread with an adjustable rate (2–256 TPS), plus pause & single-step mode
-- 🚀 **Batched instanced rendering** — blocks are drawn from a texture atlas in batches of 8192 instances per draw call
-- 🌟 **HDR bloom** — active blocks glow via a ping-pong Gaussian blur post-processing pipeline (can be toggled off)
-- 💾 **Save / load schemes** — BSON-based `.ls` / `.bson` files through native Windows file dialogs
-- ✂️ **Clipboard workflow** — box-select, copy, cut, paste, select-all and mass delete
+- ⚡ **Event-driven simulation** — a tick only visits blocks whose inputs changed, so idle parts of a scheme cost nothing; adjustable rate (2–256 TPS), pause & single-step mode
+- 📚 **Built-in examples** — from a blinker to an RS latch and a full adder (Examples menu); every bundled scheme is simulated and its truth table asserted at generation time
+- ↩️ **Undo / redo** — Ctrl+Z / Ctrl+Y with gesture grouping: a paint stroke, paste or mass delete is one step
+- 🚀 **Batched instanced rendering** — blocks are drawn from a texture atlas in batches of 8192 instances per draw call, 12 bytes per instance
+- 🌟 **HDR bloom** — active blocks glow via a half-resolution ping-pong Gaussian blur (can be toggled off)
+- 💾 **Save / load schemes** — BSON-based `.ls` / `.bson` files through native Windows file dialogs; corrupted files are rejected without losing the current scheme
+- ✂️ **Clipboard workflow** — box-select, copy, cut, paste, select-all, mass delete, plus whole-scheme export/import as a text string you can share anywhere
 - 🔔 **Toast notifications** — feedback for saving, loading and selections
 - 🖥️ **Clean ImGui HUD** — FPS / tick-time overlay, block & rotation pickers, VSync and graphics options, hideable UI
 
@@ -41,7 +44,9 @@ A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.0.9).
 | Mouse wheel | Zoom in / out |
 | `LMB` | Place block / toggle switch / rotate existing block |
 | `RMB` | Erase block |
+| `MMB` | Pick block type and rotation under cursor |
 | `Shift` + drag | Box-select blocks |
+| `Ctrl` + `Z` / `Y` | Undo / redo |
 | `0`–`9` | Pick block type (hold `Shift` for types 10–14) |
 | `R` | Rotate current block clockwise (`Shift` + `R` — counter-clockwise) |
 | `Ctrl` + `S` / `O` / `N` | Save / open / new scheme |
@@ -79,11 +84,19 @@ cmake --build --preset release
 
 The author's in-house [`Engine`](https://github.com/kewldan/Engine) library is picked up automatically: a sibling checkout (`../Engine`, override with `-DENGINE_DIR=...`) is used if present, otherwise it is fetched from GitHub and built as part of the project. vcpkg installs all manifest dependencies during the configure step.
 
-Run the executable (`build/Release/LogicalSystem.exe`) from the repository root so it can find the `data/` folder.
+The executable (`build/Release/LogicalSystem.exe`) can be started from anywhere — assets resolve relative to the exe. A single-file static build is available via `cmake --preset static && cmake --build --preset static-release`.
+
+Run the tests with:
+
+```powershell
+ctest --test-dir build -C Release
+```
+
+The bundled example schemes are generated and verified by `python tools/gen_examples.py`.
 
 ## ⚠️ Status
 
-This is a prototype. If you find bugs, please open an issue or a pull request. Back up your saves — a broken build may corrupt them.
+If you find bugs, please open an issue or a pull request. Corrupted or truncated save files are detected and rejected without touching the scheme you have open.
 
 ## 📄 License
 

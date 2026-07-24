@@ -1,5 +1,5 @@
 MAINICON ICON "data/favicon.ico"
-VERSION 2.0.9
+VERSION 2.1.0
 data/fonts/comfortaa.ttf RCDATA "data/fonts/comfortaa.ttf"
 data/fonts/fa.ttf RCDATA "data/fonts/fa.ttf"
 
@@ -23,8 +23,8 @@ data/examples/rs-latch.bson RCDATA "data/examples/rs-latch.bson"
 data/examples/full-adder.bson RCDATA "data/examples/full-adder.bson"
 
 1 VERSIONINFO
- FILEVERSION 2,0,9
- PRODUCTVERSION 2,0,9
+ FILEVERSION 2,1,0
+ PRODUCTVERSION 2,1,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -40,11 +40,11 @@ BEGIN
         BLOCK "080904b0"
         BEGIN
             VALUE "CompanyName", "kewldan"
-            VALUE "FileVersion", "2.0.9"
+            VALUE "FileVersion", "2.1.0"
             VALUE "InternalName", "LogicalSystem"
             VALUE "LegalCopyright", "2024 Tenishev Daniil"
             VALUE "ProductName", "Logical System"
-            VALUE "ProductVersion", "2.0.9"
+            VALUE "ProductVersion", "2.1.0"
         END
     END
     BLOCK "VarFileInfo"
