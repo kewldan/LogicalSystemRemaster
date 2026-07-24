@@ -12,20 +12,21 @@
 [![itch.io](https://img.shields.io/badge/itch.io-logical--system-fa5c5c?style=flat&logo=itchdotio&logoColor=white)](https://kewldan.itch.io/logical-system)
 [![build](https://github.com/kewldan/LogicalSystemRemaster/actions/workflows/build.yml/badge.svg)](https://github.com/kewldan/LogicalSystemRemaster/actions/workflows/build.yml)
 
-A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.1.0). Place logic blocks on an infinite 2D grid, wire them together and simulate whole devices — from a single gate to adders and RAM.
+A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.2.0). Place logic blocks on an infinite 2D grid, wire them together and simulate whole devices — from a single gate to adders and RAM.
 
 ## ✨ Features
 
-- 🧩 **15 block types** — 7 wire variants (straight, angled, T, cross, ...), NOT, AND, NAND, XOR, NXOR, Switch, Clock and Lamp
+- 🧩 **16 block types** — 7 wire variants (straight, angled, T, cross, jumps), NOT, AND, NAND, XOR, NXOR, Switch, Clock, Lamp and a momentary Button ([block reference](docs/blocks.md))
 - ⚡ **Event-driven simulation** — a tick only visits blocks whose inputs changed, so idle parts of a scheme cost nothing; adjustable rate (2–256 TPS), pause & single-step mode
-- 📚 **Built-in examples** — from a blinker to an RS latch and a full adder (Examples menu); every bundled scheme is simulated and its truth table asserted at generation time
+- 📚 **Built-in examples** — blinker, logic gates, RS latch, full adder and a 4-bit ripple-carry adder (Examples menu); every bundled scheme is simulated and its full truth table asserted before it ships
+- ✏️ **Fast editing** — ghost preview under the cursor, drag to paint auto-rotating wire traces, floating paste placed with a click, move/rotate whole selections, block pipette on middle click
 - ↩️ **Undo / redo** — Ctrl+Z / Ctrl+Y with gesture grouping: a paint stroke, paste or mass delete is one step
-- 🚀 **Batched instanced rendering** — blocks are drawn from a texture atlas in batches of 8192 instances per draw call, 12 bytes per instance
+- 🚀 **Batched instanced rendering** — 12-byte instances from a texture atlas, chunked culling so only visible chunks are walked
 - 🌟 **HDR bloom** — active blocks glow via a half-resolution ping-pong Gaussian blur (can be toggled off)
-- 💾 **Save / load schemes** — BSON-based `.ls` / `.bson` files through native Windows file dialogs; corrupted files are rejected without losing the current scheme
+- 💾 **Save / load schemes** — silent Ctrl+S, Save As, unsaved-changes protection; corrupted files are rejected without losing the current scheme
 - ✂️ **Clipboard workflow** — box-select, copy, cut, paste, select-all, mass delete, plus whole-scheme export/import as a text string you can share anywhere
-- 🔔 **Toast notifications** — feedback for saving, loading and selections
-- 🖥️ **Clean ImGui HUD** — FPS / tick-time overlay, block & rotation pickers, VSync and graphics options, hideable UI
+- ⚙️ **Persistent settings** — window size, VSync, bloom and TPS are stored in `settings.json`
+- 🖥️ **Clean ImGui HUD** — FPS / tick-time overlay, block & rotation pickers, toast notifications, hideable UI
 
 ## 📷 Screenshots
 
@@ -41,16 +42,18 @@ A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.1.0).
 | Input | Action |
 |---|---|
 | `W` `A` `S` `D` | Pan the camera |
-| Mouse wheel | Zoom in / out |
-| `LMB` | Place block / toggle switch / rotate existing block |
+| Mouse wheel | Zoom to cursor |
+| `LMB` | Place block (drag paints wire traces) / toggle switch / rotate block; drag a selected block to move the selection |
 | `RMB` | Erase block |
 | `MMB` | Pick block type and rotation under cursor |
 | `Shift` + drag | Box-select blocks |
 | `Ctrl` + `Z` / `Y` | Undo / redo |
-| `0`–`9` | Pick block type (hold `Shift` for types 10–14) |
-| `R` | Rotate current block clockwise (`Shift` + `R` — counter-clockwise) |
-| `Ctrl` + `S` / `O` / `N` | Save / open / new scheme |
-| `Ctrl` + `C` / `V` / `X` / `A` | Copy / paste / cut / select all |
+| `0`–`9` | Pick block type (hold `Shift` for types 10–15) |
+| `R` | Rotate current block, or the selection as a group (`Shift` — counter-clockwise) |
+| `Esc` | Cancel floating paste / deselect |
+| `Ctrl` + `S` | Save (`Ctrl` + `Shift` + `S` — Save As) |
+| `Ctrl` + `O` / `N` | Open / new scheme |
+| `Ctrl` + `C` / `V` / `X` / `A` | Copy / paste at cursor / cut / select all |
 | `Delete` | Delete selected blocks |
 | `F1` | Block info toast (debug) |
 | `F2` | Toggle UI |

@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.2.0 — 2026-07-24
+
+### Added
+
+- **Button** block (16th type): a momentary switch — click it and it emits a single-tick pulse, then releases itself.
+- **4-bit ripple-carry adder** in the Examples menu: four full-adder modules with carry buses, 348 blocks. Its complete 512-row truth table is asserted both by the generator and by the C++ test suite against the real simulation core.
+- Ghost preview of the block about to be placed, honoring rotation.
+- Paste now floats under the cursor: click to place, right-click or `Esc` to cancel.
+- Wire painting: dragging with the straight wire draws a connected trace that rotates itself along the stroke, corners included.
+- Selection tools: drag a selected block to move the whole selection (with a live ghost), `R` rotates the selection as a group around its center, `Esc` deselects.
+- `Ctrl+S` saves silently into the current file; `Ctrl+Shift+S` is Save As. A missing extension gets `.bson` appended.
+- Unsaved-changes confirmation (Save / Don't save / Cancel) on New, Open and exit.
+- `settings.json` next to the executable: window size, VSync, bloom and TPS survive restarts.
+- `docs/blocks.md`: reference of every block's rule and of the file/clipboard formats.
+
+### Performance
+
+- Chunked spatial index: rendering walks only the 32x32-block chunks overlapping the view instead of the whole map every frame.
+
+### Fixed
+
+- Zoom is smooth again: animation progress is a pure function of time (its speed used to depend on how often it was polled) and the cursor-anchor shift is applied gradually over the animation instead of jumping on scroll (Engine 1.1.1).
+- CI has permission to create releases on `v*` tags.
+
 ## 2.1.0 — 2026-07-24
 
 ### Fixed
