@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 #include <Window.h>
-#include <Camera2D.h>
+#include "EditorCamera.h"
 #include "ChunkIndex.h"
 #include "Simulation.h"
 
@@ -80,15 +80,15 @@ public:
 
     void update();
 
-    void draw(Engine::Camera2D *camera);
+    void draw(EditorCamera *camera);
 
-    bool save(Engine::Camera2D *camera, const char *path);
+    bool save(EditorCamera *camera, const char *path);
 
-    bool load(Engine::Camera2D *camera, const char *path);
+    bool load(EditorCamera *camera, const char *path);
 
-    bool load_from_memory(Engine::Camera2D *camera, const char *data, int length, bool is_bson = false);
+    bool load_from_memory(EditorCamera *camera, const char *data, int length, bool is_bson = false);
 
-    void load_example(Engine::Camera2D *camera, const char *path, const char *title);
+    void load_example(EditorCamera *camera, const char *path, const char *title);
 
     void select_all();
 
@@ -118,7 +118,7 @@ public:
 
     void export_scheme();
 
-    void import_scheme(Engine::Camera2D *camera);
+    void import_scheme(EditorCamera *camera);
 
     void commitUndo();
 

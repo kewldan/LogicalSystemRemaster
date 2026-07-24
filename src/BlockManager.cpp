@@ -216,7 +216,7 @@ void BlockManager::update() {
     tickTime = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 }
 
-bool BlockManager::save(Engine::Camera2D *camera, const char *path) {
+bool BlockManager::save(EditorCamera *camera, const char *path) {
     assert(path != nullptr);
     SchemeCamera schemeCamera{camera->position.x, camera->position.y, camera->getZoom()};
     auto binary = schemeToBson(blocks, schemeCamera);
@@ -236,7 +236,7 @@ inline bool ends_with(const char *value, const char *ending) {
     }
 }
 
-bool BlockManager::load(Engine::Camera2D *camera, const char *path) {
+bool BlockManager::load(EditorCamera *camera, const char *path) {
     assert(path != nullptr);
     int size = 0;
     const char *bin = Engine::Filesystem::readFile(path, &size);
@@ -250,7 +250,7 @@ bool BlockManager::load(Engine::Camera2D *camera, const char *path) {
     return ok;
 }
 
-bool BlockManager::load_from_memory(Engine::Camera2D *camera, const char *data, int length, bool is_bson) {
+bool BlockManager::load_from_memory(EditorCamera *camera, const char *data, int length, bool is_bson) {
     Blocks loaded;
     SchemeCamera schemeCamera;
     if (!schemeFromMemory(data, length, is_bson, loaded, schemeCamera)) {
@@ -267,7 +267,7 @@ bool BlockManager::load_from_memory(Engine::Camera2D *camera, const char *data, 
     return true;
 }
 
-void BlockManager::load_example(Engine::Camera2D *camera, const char *path, const char *title) {
+void BlockManager::load_example(EditorCamera *camera, const char *path, const char *title) {
     int size = 0;
     auto data = (const char *) Engine::Filesystem::readResourceFile(path, &size);
     if (data != nullptr && load_from_memory(camera, data, size, true)) {
@@ -425,7 +425,7 @@ void BlockManager::export_scheme() {
     ImGui::InsertNotification(toast);
 }
 
-void BlockManager::import_scheme(Engine::Camera2D *camera) {
+void BlockManager::import_scheme(EditorCamera *camera) {
     Blocks imported;
     long long count = blocksFromClipboard(window->getId(), imported, 0, 0);
 
@@ -537,7 +537,7 @@ void BlockManager::rotate_selected(int k) {
     commitUndo();
 }
 
-void BlockManager::draw(Engine::Camera2D *camera) {
+void BlockManager::draw(EditorCamera *camera) {
     int j = 0;
     int LB = (int) camera->position.x + (int) camera->left - 16;
     int RB = (int) camera->position.x + (int) camera->right + 16;

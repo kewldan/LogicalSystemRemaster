@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 project(LogicalSystem
         HOMEPAGE_URL https://kewldan.itch.io/logical-system
-        VERSION 2.2.1
+        VERSION 2.2.2
         LANGUAGES CXX
 )
 
@@ -62,12 +62,9 @@ target_compile_definitions(LogicalSystem PRIVATE BLOCK_BATCHING=8192 LS_VERSION=
 target_include_directories(LogicalSystem PRIVATE include ${Stb_INCLUDE_DIR})
 target_link_libraries(LogicalSystem PRIVATE Engine glad::glad glfw glm::glm plog::plog ZLIB::ZLIB aklomp::base64 imgui::imgui nfd::nfd)
 
-# Keep data/ at the location from which each platform launches the app.
-if (APPLE)
-    set(LS_DATA_DIR "$<TARGET_BUNDLE_CONTENT_DIR:LogicalSystem>/Resources/data")
-else ()
-    set(LS_DATA_DIR "$<TARGET_FILE_DIR:LogicalSystem>/data")
-endif ()
+# Runtime asset lookup is relative to the executable on every platform. For a
+# macOS bundle that means Contents/MacOS/data, not Contents/Resources/data.
+set(LS_DATA_DIR "$<TARGET_FILE_DIR:LogicalSystem>/data")
 add_custom_command(TARGET LogicalSystem POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/data ${LS_DATA_DIR})
@@ -78,6 +75,7 @@ add_executable(LogicalSystemTests
         src/Block.cpp
         src/Simulation.cpp
         src/Scheme.cpp
+        src/SmoothZoom.cpp
 )
 target_include_directories(LogicalSystemTests PRIVATE include ${Stb_INCLUDE_DIR})
 target_link_libraries(LogicalSystemTests PRIVATE doctest::doctest Engine plog::plog nlohmann_json::nlohmann_json ZLIB::ZLIB)

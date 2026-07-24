@@ -31,26 +31,21 @@ jobs:
       - name: Configure
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
-        run: cmake --preset default
+        run: cmake --preset static
 
       - name: Build
-        run: cmake --build --preset release
+        run: cmake --build --preset static-release
 
       - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
+        run: ctest --test-dir build-static -C Release --output-on-failure
 
       - name: Package
-        run: |
-          New-Item -ItemType Directory package | Out-Null
-          Copy-Item build/Release/LogicalSystem.exe package/
-          Copy-Item build/Release/*.dll package/
-          Copy-Item README.md, LICENSE package/
-          Compress-Archive -Path package/* -DestinationPath LogicalSystem-win64.zip
+        run: Copy-Item build-static/Release/LogicalSystem.exe LogicalSystem-win64.exe
 
       - uses: actions/upload-artifact@v4
         with:
           name: LogicalSystem-win64
-          path: LogicalSystem-win64.zip
+          path: LogicalSystem-win64.exe
 
   macos:
     runs-on: macos-latest
@@ -100,4 +95,8 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release/**/*.zip
+          name: Logical System ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release/**/*.exe
+            release/**/*.zip

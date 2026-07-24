@@ -12,7 +12,7 @@
 [![itch.io](https://img.shields.io/badge/itch.io-logical--system-fa5c5c?style=flat&logo=itchdotio&logoColor=white)](https://kewldan.itch.io/logical-system)
 [![build](https://github.com/kewldan/LogicalSystemRemaster/actions/workflows/build.yml/badge.svg)](https://github.com/kewldan/LogicalSystemRemaster/actions/workflows/build.yml)
 
-A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.2.0). Place logic blocks on an infinite 2D grid, wire them together and simulate whole devices — from a single gate to adders and RAM.
+A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.2.2). Place logic blocks on an infinite 2D grid, wire them together and simulate whole devices — from a single gate to adders and RAM.
 
 ## ✨ Features
 
@@ -42,7 +42,7 @@ A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.2.0).
 | Input | Action |
 |---|---|
 | `W` `A` `S` `D` | Pan the camera |
-| Mouse wheel | Zoom to cursor |
+| Mouse wheel / touchpad | Smooth zoom to cursor |
 | `LMB` | Place block (drag paints wire traces) / toggle switch / rotate block; drag a selected block to move the selection |
 | `RMB` | Erase block |
 | `MMB` | Pick block type and rotation under cursor |

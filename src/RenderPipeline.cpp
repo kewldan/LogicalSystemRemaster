@@ -106,7 +106,7 @@ void RenderPipeline::resize(int nw, int nh) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void RenderPipeline::beginPass(Engine::Camera2D *camera, unsigned int atlas, unsigned int blockVao,
+void RenderPipeline::beginPass(EditorCamera *camera, unsigned int atlas, unsigned int blockVao,
                                const std::function<void()> &drawFunction) {
     glViewport(0, 0, w, h);
     glBindFramebuffer(GL_FRAMEBUFFER, FBO);
@@ -165,7 +165,7 @@ void RenderPipeline::beginPass(Engine::Camera2D *camera, unsigned int atlas, uns
     drawScreenQuad();
 }
 
-void RenderPipeline::drawSelection(Engine::Camera2D *camera, glm::vec2 position, glm::vec2 size) const {
+void RenderPipeline::drawSelection(EditorCamera *camera, glm::vec2 position, glm::vec2 size) const {
     selectionShader->bind();
     selectionShader->upload("proj", camera->getProjection());
     glm::mat4 mvp = glm::translate(glm::mat4(1), glm::vec3(position, -0.1f));

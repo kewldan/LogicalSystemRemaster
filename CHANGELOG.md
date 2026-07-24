@@ -1,5 +1,21 @@
 # Changelog
 
+## Последний месяц — июль 2026
+
+- Добавлены кнопка, ghost-preview, рисование проводов, перемещение и поворот выделения, undo/redo, paste под курсором и защита от несохранённых изменений.
+- Появились готовые схемы, включая 4-битный сумматор, документация по блокам и тесты для логики, сериализации и примеров.
+- Симуляция стала событийной, а рендеринг — chunked: большие и пустые схемы работают заметно быстрее.
+- Исправлены гонки и краши при редактировании, вставке из буфера, повреждённых файлах и масштабировании; сохранения и настройки окна стали надёжнее.
+- Добавлены CMake presets, CI с тестами и релизной упаковкой, а также нативная macOS-сборка `.app` с Retina-исправлениями, Cmd-сочетаниями и иконкой Dock.
+
+## 2.2.2 — 2026-07-25
+
+### Improved
+
+- Reworked cursor-anchored zoom with frame-rate-independent spring motion, proportional scaling and smooth handling of both mouse-wheel ticks and fractional touchpad input.
+- Windows releases now include a standalone static `.exe`; macOS releases include the complete `.app` bundle.
+- Fixed asset placement in clean macOS bundles so downloaded builds find their shaders, fonts, textures and examples at runtime.
+
 ## 2.2.1 — 2026-07-24
 
 ### Added

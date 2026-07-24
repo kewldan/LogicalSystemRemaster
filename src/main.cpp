@@ -1,7 +1,7 @@
 ﻿#include "Window.h"
 #include "HUD.h"
 #include "BlockManager.h"
-#include "Camera2D.h"
+#include "EditorCamera.h"
 #include "RenderPipeline.h"
 #include "Input.h"
 #include "nfd.h"
@@ -64,7 +64,7 @@ static void saveSettings(const AppSettings &s) {
     file << j.dump(2);
 }
 
-void openLoadDialog(BlockManager &blocks, Engine::Camera2D *camera) {
+void openLoadDialog(BlockManager &blocks, EditorCamera *camera) {
     nfdchar_t *loadPath;
     nfdresult_t loadResult = NFD_OpenDialog(&loadPath, schemeFilter, 1, nullptr);
 
@@ -85,7 +85,7 @@ void openLoadDialog(BlockManager &blocks, Engine::Camera2D *camera) {
 
 // Saves silently into the current file; shows the dialog only for a new
 // scheme or when forceDialog is set (Save As). Returns true when saved.
-bool saveScheme(BlockManager &blocks, Engine::Camera2D *camera, bool forceDialog) {
+bool saveScheme(BlockManager &blocks, EditorCamera *camera, bool forceDialog) {
     std::string path = blocks.currentFile;
     if (forceDialog || path.empty()) {
         nfdchar_t *savePath = nullptr;
@@ -161,7 +161,7 @@ int main() {
     Engine::Window window(settings.width, settings.height, "Logical system");
     window.setIcon("data/textures/favicon.png");
     Engine::Input input(window.getId());
-    Engine::Camera2D camera(&window);
+    EditorCamera camera(&window);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -263,7 +263,6 @@ int main() {
         }
 
         input.update();
-        camera.update();
         window.reset();
         window.setVsync(vsync);
 
@@ -277,6 +276,17 @@ int main() {
             return glm::vec2(position.x * cursorScaleX, position.y * cursorScaleY);
         };
         const glm::vec2 cursorPosition = toFramebuffer(input.getCursorPosition());
+
+        // Feed scroll into the spring before updating the camera so both a
+        // wheel tick and a touchpad gesture are visible in this same frame.
+        if (!io->WantCaptureMouse && input.getMouseWheelDelta().y != 0.f) {
+            const float anchorX = window.width > 0
+                                  ? cursorPosition.x / static_cast<float>(window.width) : 0.5f;
+            const float anchorY = window.height > 0
+                                  ? 1.f - cursorPosition.y / static_cast<float>(window.height) : 0.5f;
+            camera.addZoomInput(input.getMouseWheelDelta().y, glm::vec2(anchorX, anchorY));
+        }
+        camera.update();
 
         static double tickAccumulator = 0.0;
         if (blocks.simulate) {
@@ -427,11 +437,6 @@ int main() {
             }
 
             if (!io->WantCaptureMouse) {
-                if (input.getMouseWheelDelta().y != 0.f) {
-                    camera.zoomAt(input.getMouseWheelDelta().y * -0.1f,
-                                  glm::vec2(cursorPosition.x / (float) window.width,
-                                            1.f - cursorPosition.y / (float) window.height));
-                }
                 if (input.isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_MIDDLE)) {
                     Block *picked = blocks.get(blockX, blockY);
                     if (picked) {

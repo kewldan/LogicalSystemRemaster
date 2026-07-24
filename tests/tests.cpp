@@ -8,6 +8,7 @@
 
 #include "ChunkIndex.h"
 #include "Scheme.h"
+#include "SmoothZoom.h"
 #include "Simulation.h"
 #include "io/Filesystem.h"
 
@@ -51,6 +52,49 @@ TEST_CASE("rotateBlock wraps in both directions") {
     CHECK(rotateBlock(3, 1) == 0);
     CHECK(rotateBlock(0, -1) == 3);
     CHECK(rotateBlock(2, -1) == 1);
+}
+
+TEST_CASE("zoom treats a wheel tick and fractional touchpad deltas equally") {
+    SmoothZoom wheel;
+    SmoothZoom touchpad;
+
+    wheel.addScroll(1.f);
+    for (int i = 0; i < 10; i++) touchpad.addScroll(0.1f);
+
+    CHECK(wheel.target() < 1.f);
+    CHECK(touchpad.target() == doctest::Approx(wheel.target()).epsilon(0.00001));
+}
+
+TEST_CASE("zoom animation is frame-rate independent and bounded") {
+    SmoothZoom oneFrame;
+    SmoothZoom manyFrames;
+    oneFrame.addScroll(-2.f);
+    manyFrames.addScroll(-2.f);
+
+    const float once = oneFrame.step(0.1f);
+    for (int i = 0; i < 10; i++) manyFrames.step(0.01f);
+    CHECK(manyFrames.value() == doctest::Approx(once).epsilon(0.00001));
+
+    SmoothZoom limits;
+    for (int i = 0; i < 100; i++) limits.addScroll(8.f);
+    CHECK(limits.target() == doctest::Approx(SmoothZoom::MIN_ZOOM));
+    for (int i = 0; i < 100; i++) limits.addScroll(-8.f);
+    CHECK(limits.target() == doctest::Approx(SmoothZoom::MAX_ZOOM));
+}
+
+TEST_CASE("zoom approaches its target smoothly without overshooting") {
+    SmoothZoom zoom;
+    zoom.addScroll(1.f);
+    const float target = zoom.target();
+    float previous = zoom.value();
+
+    for (int i = 0; i < 120; i++) {
+        const float current = zoom.step(1.f / 120.f);
+        CHECK(current <= previous);
+        CHECK(current >= target);
+        previous = current;
+    }
+    CHECK(zoom.value() == doctest::Approx(target).epsilon(0.0001));
 }
 
 TEST_CASE("isBlockActive truth tables") {
