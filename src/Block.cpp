@@ -1,4 +1,7 @@
 #include "Block.h"
+
+#include <cassert>
+#include <cstring>
 #include "plog/Log.h"
 
 BlockRotation rotateBlock(BlockRotation r, int k) {
@@ -10,53 +13,49 @@ long long Block_TO_LONG(int x, int y) {
     return static_cast<long long>(x) << 32 | (y & 0xFFFFFFFFL);
 }
 
-BlockType::BlockType(BlockId id, const BlockActivationFunction &func) {
-    assert(func != nullptr);
-    assert(id >= 0);
-    this->id = id;
-    isActive = func;
+bool isBlockActive(BlockId id, BlockConnectionCount connections) {
+    switch (id) {
+        case 7: // NOT
+            return connections == 0;
+        case 8: // AND
+            return connections >= 2;
+        case 9: // NAND
+            return connections < 2;
+        case 10: // XOR
+            return connections % 2 != 0;
+        case 11: // NXOR
+            return connections % 2 == 0;
+        case BLOCK_SWITCH:
+            return false;
+        case BLOCK_CLOCK:
+            return connections == 0;
+        default: // wires & lamp
+            return connections > 0;
+    }
 }
 
-BlockType::BlockType() = default;
-
-glm::mat4 &Block::getMVP() {
-    return mvp;
+Block::Block(BlockId typeId, BlockRotation rotation) : typeId(typeId), rotation(rotation) {
+    assert(typeId < BLOCK_TYPE_COUNT);
+    assert(rotation <= 3);
 }
 
-Block::Block(int x, int y, BlockType *type, BlockRotation rotation) {
-    assert(type != nullptr);
-    assert(rotation >= 0 && rotation <= 3);
-    this->type = type;
-    this->rotation = rotation;
-    updateMvp(x, y);
-}
-
-Block::Block(const char *buffer, BlockType *types, long long *pos) {
+Block::Block(const char *buffer, long long *pos) {
     assert(buffer != nullptr);
     assert(pos != nullptr);
-    assert(types != nullptr);
     memcpy(pos, buffer, 8);
-    int t = 0;
-    memcpy(&t, buffer + 8, 1);
-    if (t < 0 || t > 14) {
-        t = 0;
-        PLOGW << "Block from buffer in " << *pos << " at " << (void *) buffer << " has invalid type, save corrupted";
+    typeId = static_cast<BlockId>(buffer[8]);
+    if (typeId >= BLOCK_TYPE_COUNT) {
+        PLOGW << "Block from buffer in " << *pos << " has invalid type " << (int) typeId << ", save corrupted";
+        typeId = 0;
     }
-    type = &types[t];
-    memcpy(&rotation, buffer + 9, 1);
-    memcpy(&active, buffer + 10, 1);
-    updateMvp(Block_X(*pos), Block_Y(*pos));
+    rotation = static_cast<BlockRotation>(buffer[9]) & 3;
+    active = buffer[10] != 0;
 }
 
-void Block::write(char *buffer, long long pos) {
+void Block::write(char *buffer, long long pos) const {
     assert(buffer != nullptr);
     memcpy(buffer, &pos, 8);
-    memcpy(buffer + 8, &type->id, 1);
-    memcpy(buffer + 9, &rotation, 1);
-    memcpy(buffer + 10, &active, 1);
-}
-
-void Block::updateMvp(int x, int y) {
-    mvp = glm::translate(glm::mat4(1), glm::vec3(x << 5, y << 5, -0.2f));
-    mvp *= blockTransformMatrices[rotation];
+    buffer[8] = static_cast<char>(typeId);
+    buffer[9] = static_cast<char>(rotation);
+    buffer[10] = active ? 1 : 0;
 }

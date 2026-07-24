@@ -1,5 +1,7 @@
 #include "RenderPipeline.h"
 
+#include <algorithm>
+
 RenderPipeline::RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blurShader, Engine::Shader *finalShader,
                                Engine::Shader *backgroundShader, Engine::Shader *selectionShader,
                                int width, int height) : gShader(blockShader),
@@ -9,6 +11,8 @@ RenderPipeline::RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blur
                                                         selectionShader(selectionShader) {
     w = width;
     h = height;
+    bloomW = std::max(1, width / 2);
+    bloomH = std::max(1, height / 2);
     glGenFramebuffers(1, &FBO);
     glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 
@@ -70,7 +74,7 @@ RenderPipeline::RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blur
         glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
         glBindTexture(GL_TEXTURE_2D, pingpongBuffer[i]);
         glTexImage2D(
-                GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr
+                GL_TEXTURE_2D, 0, GL_RGBA16F, bloomW, bloomH, 0, GL_RGBA, GL_FLOAT, nullptr
         );
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -85,6 +89,8 @@ RenderPipeline::RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blur
 void RenderPipeline::resize(int nw, int nh) {
     w = nw;
     h = nh;
+    bloomW = std::max(1, nw / 2);
+    bloomH = std::max(1, nh / 2);
 
     glBindTexture(GL_TEXTURE_2D, gAlbedo);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, w, h, 0, GL_RGB, GL_FLOAT, nullptr);
@@ -94,7 +100,7 @@ void RenderPipeline::resize(int nw, int nh) {
 
     for (unsigned int i: pingpongBuffer) {
         glBindTexture(GL_TEXTURE_2D, i);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, bloomW, bloomH, 0, GL_RGBA, GL_FLOAT, nullptr);
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -128,6 +134,7 @@ void RenderPipeline::beginPass(Engine::Camera2D *camera, unsigned int atlas, uns
 
     bool horizontal = true, first_iteration = true;
     if (bloom) {
+        glViewport(0, 0, bloomW, bloomH);
         blurShader->bind();
         blurShader->upload("image", 0);
         for (int i = 0; i < 8; i++) {
@@ -142,6 +149,7 @@ void RenderPipeline::beginPass(Engine::Camera2D *camera, unsigned int atlas, uns
             if (first_iteration)
                 first_iteration = false;
         }
+        glViewport(0, 0, w, h);
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 

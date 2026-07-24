@@ -25,6 +25,7 @@ private:
     unsigned int pingpongBuffer[2]{};
     Engine::Shader *gShader, *blurShader, *finalShader, *backgroundShader, *selectionShader;
     unsigned int FBO{}, gAlbedo{}, gAlbedoHDR{}, screenVAO{}, screenVBO{}, quadVAO{}, quadVBO{};
+    int bloomW, bloomH; // bloom is blurred at half resolution
 public:
     int w, h;
     glm::vec3 blockDefaultColor{}, blockGlowColor{};

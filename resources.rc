@@ -1,5 +1,5 @@
 MAINICON ICON "data/favicon.ico"
-VERSION 2.0.8
+VERSION 2.0.9
 data/fonts/comfortaa.ttf RCDATA "data/fonts/comfortaa.ttf"
 data/fonts/fa.ttf RCDATA "data/fonts/fa.ttf"
 

@@ -125,7 +125,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         pipeline.beginPass(&camera, blocks.atlas, blocks.VAO, [&blocks, &camera]() { blocks.draw(&camera); });
 
         if (!io->WantCaptureKeyboard) {
-            for (int i = 0; i <= 10; i++) {
+            for (int i = 0; i < 10; i++) {
                 if (input.isKeyJustPressed(GLFW_KEY_0 + i)) {
                     blocks.currentBlock = !i ? 9 : i - 1;
                     blocks.currentBlock += 10 * input.isKeyPressed(GLFW_KEY_LEFT_SHIFT);
@@ -138,7 +138,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                 Block *block = blocks.get(blockX, blockY);
                 if (block) {
                     toast.set_title("%p - %d blocks\nBlock %dx%d\nType - %d\nData - %.2X", &blocks.blocks,
-                                    blocks.length(), blockX, blockY, block->type->id, 217);
+                                    blocks.length(), blockX, blockY, block->typeId, 217);
                 } else {
                     toast.set_title("%p - %d blocks\nBlock %dx%d", &blocks.blocks, blocks.length(), blockX, blockY);
                 }
@@ -181,7 +181,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                     blocks.select_all();
                 }
                 if (input.isKeyJustPressed(GLFW_KEY_N)) {
-                    blocks.blocks.clear();
+                    blocks.clear();
                 }
             } else {
                 float cameraSpeed = 500.f * camera.getZoom() * camera.getZoom() * io->DeltaTime;
@@ -208,13 +208,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                     Block *block = blocks.get(blockX, blockY);
                     if (block) {
                         if (input.isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_LEFT)) {
-                            if (block->type->id == blocks.types[12].id) {
+                            if (block->typeId == BLOCK_SWITCH) {
                                 block->active ^= 1;
                             } else {
-                                blocks.rotate(blockX, blockY, rotateBlock(block->rotation,
-                                                                          input.isKeyPressed(GLFW_KEY_LEFT_SHIFT)
-                                                                          ? -1.f
-                                                                          : 1.f));
+                                blocks.rotate(blockX, blockY, rotateBlock(block->rotation, 1));
                             }
                         }
                     } else if (input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
@@ -261,8 +258,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             for (auto &it: blocks.blocks) {
                 int px = Block_X(it.first) << 5;
                 int py = Block_Y(it.first) << 5;
-                it.second->selected = px > s_LB && px < s_RB && py > s_BB && py < s_TB;
-                blocks.selectedBlocks += it.second->selected;
+                it.second.selected = px > s_LB && px < s_RB && py > s_BB && py < s_TB;
+                blocks.selectedBlocks += it.second.selected;
             }
 
             ImGuiToast toast(ImGuiToastType_Info, 2000);
@@ -289,7 +286,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                 if (ImGui::BeginMenuBar()) {
                     if (ImGui::BeginMenu("File")) {
                         if (ImGui::MenuItem(ICON_FA_FILE "  New", "Ctrl + N"))
-                            blocks.blocks.clear();
+                            blocks.clear();
                         if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " Open", "Ctrl + O"))
                             openLoadDialog(blocks, &camera);
                         if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK "  Save", "Ctrl + S"))
@@ -309,9 +306,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                             blocks.delete_selected();
                         ImGui::EndMenu();
                     }
-                    if (ImGui::BeginMenu("Examples")) {
-                        ImGui::EndMenu();
-                    }
                     if (ImGui::BeginMenu("Graphics")) {
                         ImGui::MenuItem("VSync", nullptr, &vsync);
                         ImGui::MenuItem("Bloom", nullptr, &pipeline.bloom);
@@ -325,8 +319,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                             ShellExecute(nullptr, nullptr, "https://github.com/kewldan/LogicalSystemRemaster", nullptr,
                                          nullptr, SW_SHOW);
                         static const std::string versionString = std::format("Version: 2.0.9 ({})", __DATE__);
-                        static const char *version = versionString.c_str();
-                        ImGui::MenuItem(version, nullptr, nullptr, false);
+                        ImGui::MenuItem(versionString.c_str(), nullptr, nullptr, false);
                         ImGui::MenuItem("Author: kewldan", nullptr, nullptr, false);
                         ImGui::EndMenu();
                     }
@@ -364,5 +357,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         Engine::HUD::end();
     } while (window.update());
     blocks.thread.join();
+    Engine::HUD::destroy();
     return 0;
 }

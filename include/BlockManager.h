@@ -1,29 +1,27 @@
 #pragma once
 
-#include <thread>
 #include <mutex>
+#include <thread>
+#include <unordered_map>
 #include <Window.h>
 #include <Camera2D.h>
 #include "Block.h"
 
-typedef std::unordered_map<long long, Block *> Blocks;
+typedef std::unordered_map<long long, Block> Blocks;
 
+// Per-instance data uploaded to the GPU: packed state + grid coordinates.
+// info bits: 0 - selected, 1 - active, 2..5 - type id, 6..7 - rotation
 struct BlockInfo {
 public:
     int info;
-    glm::mat4 mvp{};
+    int x, y;
 
-    BlockInfo(BlockId id, bool active, bool selection, glm::mat4 mat) {
-        info = id << 2;
-        if (active) info |= 2;
-        if (selection) info |= 1;
-        this->mvp = mat;
+    BlockInfo(BlockId id, bool active, bool selection, BlockRotation rotation, int x, int y)
+            : info((id << 2) | (active ? 2 : 0) | (selection ? 1 : 0) | (rotation << 6)), x(x), y(y) {
     }
 
-    BlockInfo() {
-        info = 0;
-        mvp = glm::mat4(1);
-    };
+    BlockInfo() : info(0), x(0), y(0) {
+    }
 };
 
 class BlockManager {
@@ -35,7 +33,6 @@ private:
 public:
     unsigned int atlas{}, VAO{}, VBO[2];
     Blocks blocks;
-    BlockType types[15];
     bool simulate = true;
     int TPS, selectedBlocks{};
     double tickTime{};
@@ -47,7 +44,9 @@ public:
 
     BlockManager(Engine::Window *window, const float vertices[], int count);
 
-    void set(int x, int y, Block *block);
+    ~BlockManager();
+
+    void set(int x, int y, const Block &block);
 
     void set(int x, int y);
 
@@ -56,6 +55,8 @@ public:
     bool has(int x, int y);
 
     void erase(int x, int y);
+
+    void clear();
 
     void rotate(int x, int y, BlockRotation rotation);
 
@@ -73,7 +74,7 @@ public:
 
     bool load(Engine::Camera2D *camera, const char *path);
 
-    void load_from_memory(Engine::Camera2D *camera, const char *data, int length, bool is_bson = false);
+    bool load_from_memory(Engine::Camera2D *camera, const char *data, int length, bool is_bson = false);
 
     void load_example(Engine::Camera2D *camera, const char *path);
 
