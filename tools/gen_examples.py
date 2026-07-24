@@ -10,7 +10,7 @@ import struct
 import time
 import os
 
-SWITCH, CLOCK, LAMP = 12, 13, 14
+SWITCH, CLOCK, LAMP, BUTTON = 12, 13, 14, 15
 NOT, AND, NAND, XOR, NXOR = 7, 8, 9, 10, 11
 WIRE, WIRE_R, WIRE_L, WIRE_T, WIRE_X, WIRE2, WIRE3 = 0, 1, 2, 3, 4, 5, 6
 
@@ -53,7 +53,7 @@ def is_active(t, c):
     if t == NAND: return c < 2
     if t == XOR: return c % 2 == 1
     if t == NXOR: return c % 2 == 0
-    if t == SWITCH: return False
+    if t in (SWITCH, BUTTON): return False
     if t == CLOCK: return c == 0
     return c > 0
 
@@ -94,9 +94,12 @@ def tick(blocks):
             out(x, y, rot(r, -1)); out(x, y, r); out(x, y, rot(r, 1))
         elif t == SWITCH:
             feed(x + 1, y); feed(x, y - 1); feed(x, y + 1); feed(x - 1, y)
+        elif t == BUTTON:
+            feed(x + 1, y); feed(x, y - 1); feed(x, y + 1); feed(x - 1, y)
+            b[2] = False  # buttons are momentary: one pulse, then release
 
     for pos, b in blocks.items():
-        if b[0] not in (SWITCH, CLOCK):
+        if b[0] not in (SWITCH, CLOCK, BUTTON):
             b[2] = is_active(b[0], conn.get(pos, 0))
 
 
@@ -276,26 +279,39 @@ def rs_latch():
 
 # --- 4. full adder: Sum = XOR of 3 inputs (parity), Cout = AND block (>=2) ---
 
+def build_full_adder(b, ox, oy, cin_switch):
+    """One full-adder stage. A switch at (ox,oy+8), B switch at (ox,oy-4).
+    Cin: a switch at (ox-2,oy+4) when cin_switch, otherwise an angled-wire
+    port at the same cell fed from (ox-3,oy+4). Sum lamp at (ox+8,oy+4),
+    Cout leaves the stage at (ox+8,oy) heading right."""
+    b.put(ox + 6, oy + 4, XOR, 1)  # Sum: odd number of inputs
+    b.path([(ox + 7, oy + 4), (ox + 8, oy + 4)])
+    b.put(ox + 8, oy + 4, LAMP)  # Sum
+    b.put(ox + 6, oy, AND, 1)  # Cout: majority (at least 2 inputs)
+    b.path([(ox + 7, oy), (ox + 8, oy)])  # Cout exits right
+
+    b.put(ox, oy + 8, SWITCH)  # A
+    b.path([(ox + 1, oy + 8), (ox + 6, oy + 8), (ox + 6, oy + 4)])  # A -> XOR (top)
+    b.path([(ox, oy + 7), (ox, oy + 2), (ox + 6, oy + 2), (ox + 6, oy)])  # A -> AND (top)
+
+    b.put(ox, oy - 4, SWITCH)  # B
+    b.path([(ox + 1, oy - 4), (ox + 6, oy - 4), (ox + 6, oy)])  # B -> AND (bottom)
+    b.path([(ox, oy - 3), (ox + 3, oy - 3), (ox + 3, oy + 3), (ox + 6, oy + 3), (ox + 6, oy + 4)],
+           jumps=((ox + 3, oy + 1),))  # B -> XOR (bottom)
+
+    if cin_switch:
+        b.put(ox - 2, oy + 4, SWITCH)  # Cin
+    else:
+        b.put(ox - 2, oy + 4, WIRE_R, 1)  # Cin port: fans right and down
+    b.path([(ox - 1, oy + 4), (ox + 6, oy + 4)], jumps=((ox - 1, oy + 4),))  # Cin -> XOR (left)
+    b.path([(ox - 2, oy + 3), (ox - 2, oy), (ox + 6, oy)], jumps=((ox + 2, oy),))  # Cin -> AND (left)
+
+
 def full_adder():
     b = Board()
-    b.put(6, 4, XOR, 1)  # Sum: odd number of inputs
-    b.path([(7, 4), (8, 4)])
-    b.put(8, 4, LAMP)  # Sum
-    b.put(6, 0, AND, 1)  # Cout: majority (at least 2 inputs)
-    b.path([(7, 0), (8, 0)])
-    b.put(8, 0, LAMP)  # Cout
-
-    b.put(0, 8, SWITCH)  # A
-    b.path([(1, 8), (6, 8), (6, 4)])  # A -> XOR (top)
-    b.path([(0, 7), (0, 2), (6, 2), (6, 0)])  # A -> AND (top)
-
-    b.put(0, -4, SWITCH)  # B
-    b.path([(1, -4), (6, -4), (6, 0)])  # B -> AND (bottom)
-    b.path([(0, -3), (3, -3), (3, 3), (6, 3), (6, 4)], jumps=((3, 1),))  # B -> XOR (bottom)
-
-    b.put(-2, 4, SWITCH)  # Cin
-    b.path([(-1, 4), (6, 4)], jumps=((-1, 4),))  # Cin -> XOR (left)
-    b.path([(-2, 3), (-2, 0), (6, 0)], jumps=((2, 0),))  # Cin -> AND (left)
+    build_full_adder(b, 0, 0, cin_switch=True)
+    b.path([(8, 0), (9, 0)])
+    b.put(9, 0, LAMP)  # Cout lamp right after the exit wire
 
     for a in (0, 1):
         for c in (0, 1):
@@ -306,11 +322,50 @@ def full_adder():
                 settle(b.blocks)
                 total = a + c + d
                 assert b.lamp(8, 4) == (total % 2 == 1), f"Sum({a},{c},{d})"
-                assert b.lamp(8, 0) == (total >= 2), f"Cout({a},{c},{d})"
+                assert b.lamp(9, 0) == (total >= 2), f"Cout({a},{c},{d})"
     for x, y in ((0, 8), (0, -4), (-2, 4)):
         b.set_switch(x, y, 0)
     settle(b.blocks)
     save(b, "full-adder", 3, 2)
+
+
+# --- 5. 4-bit ripple-carry adder: four full-adder stages, carry routed down ---
+
+def adder_4bit():
+    b = Board()
+    STEP = 16
+    for i in range(4):
+        oy = -i * STEP
+        build_full_adder(b, 0, oy, cin_switch=(i == 0))
+        if i < 3:
+            # carry: from this stage's Cout exit down and around into the
+            # next stage's Cin port at (-2, oy-16+4). The horizontal run sits
+            # at oy-6: one row further from the next stage's A switch, so the
+            # switch cannot feed the carry bus directly.
+            b.path([(8, oy), (8, oy - 6), (-4, oy - 6), (-4, oy - 12), (-2, oy - 12)])
+        else:
+            b.path([(8, oy), (9, oy)])
+            b.put(9, oy, LAMP)  # final carry-out lamp
+
+    def set_inputs(a, c, cin):
+        for i in range(4):
+            b.set_switch(0, -i * STEP + 8, (a >> i) & 1)
+            b.set_switch(0, -i * STEP - 4, (c >> i) & 1)
+        b.set_switch(-2, 4, cin)
+
+    for a in range(16):
+        for c in range(16):
+            for cin in (0, 1):
+                set_inputs(a, c, cin)
+                settle(b.blocks, 220)
+                total = a + c + cin
+                for i in range(4):
+                    assert b.lamp(8, -i * STEP + 4) == bool((total >> i) & 1), \
+                        f"Sum{i}({a}+{c}+{cin})"
+                assert b.lamp(9, -3 * STEP) == (total >= 16), f"Cout({a}+{c}+{cin})"
+    set_inputs(0, 0, 0)
+    settle(b.blocks, 220)
+    save(b, "adder-4bit", 3, -18, zoom=2.2)
 
 
 if __name__ == "__main__":
@@ -318,4 +373,5 @@ if __name__ == "__main__":
     gates()
     rs_latch()
     full_adder()
+    adder_4bit()
     print("all example schemes verified")
