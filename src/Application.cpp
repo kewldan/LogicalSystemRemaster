@@ -7,7 +7,9 @@
 #include "EditorCamera.h"
 #include "RenderPipeline.h"
 #include "Input.h"
+#ifndef __EMSCRIPTEN__
 #include "nfd.h"
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -33,7 +35,9 @@
 #define PRIMARY_SHORTCUT_MODIFIER "Ctrl"
 #endif
 
+#ifndef __EMSCRIPTEN__
 static const nfdfilteritem_t schemeFilter[] = {{"Logical System schemes", "bson,ls"}};
+#endif
 
 #ifdef __EMSCRIPTEN__
 static void emscriptenFrame(void *self) {
@@ -115,6 +119,11 @@ bool Application::loadSchemePath(const std::string &path) {
 }
 
 void Application::openLoadDialog() {
+#ifdef __EMSCRIPTEN__
+    ImGuiToast toast(ImGuiToastType_Info, 4000);
+    toast.set_title("On the web, open a scheme from the Examples menu or Import from clipboard");
+    ImGui::InsertNotification(toast);
+#else
     nfdchar_t *loadPath;
     nfdresult_t loadResult = NFD_OpenDialog(&loadPath, schemeFilter, 1, nullptr);
 
@@ -122,6 +131,7 @@ void Application::openLoadDialog() {
         loadSchemePath(loadPath);
         NFD_FreePath(loadPath);
     }
+#endif
 }
 
 bool Application::saveScheme(bool forceDialog) {
@@ -129,11 +139,18 @@ bool Application::saveScheme(bool forceDialog) {
     auto &camera = *this->camera;
     std::string path = blocks.currentFile;
     if (forceDialog || path.empty()) {
+#ifdef __EMSCRIPTEN__
+        ImGuiToast toast(ImGuiToastType_Info, 4000);
+        toast.set_title("On the web, use Export to clipboard to save a scheme");
+        ImGui::InsertNotification(toast);
+        return false;
+#else
         nfdchar_t *savePath = nullptr;
         if (NFD_SaveDialog(&savePath, schemeFilter, 1, nullptr, nullptr) != NFD_OKAY) return false;
         path = savePath;
         NFD_FreePath(savePath);
         if (!std::filesystem::path(path).has_extension()) path += ".bson";
+#endif
     }
 
     bool ok = blocks.save(&camera, path.c_str());
@@ -209,7 +226,9 @@ void Application::paintWire(int fromX, int fromY, int toX, int toY) {
 
 int Application::run() {
     setWorkingDirectoryToExecutable();
+#ifndef __EMSCRIPTEN__
     if (NFD_Init() != NFD_OKAY) return 1;
+#endif
 
     settings = storage.loadSettings();
     vsync = settings.vsync;

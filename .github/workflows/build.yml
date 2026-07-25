@@ -125,9 +125,33 @@ jobs:
           name: LogicalSystem-linux-x64
           path: LogicalSystem-linux-x64.tar.gz
 
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.4
+
+      - name: Configure
+        run: emcmake cmake -S . -B build-web -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build-web -j
+
+      - name: Package
+        run: cd build-web && zip ../LogicalSystem-web.zip index.html index.js index.wasm index.data
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LogicalSystem-web
+          path: LogicalSystem-web.zip
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, macos, linux]
+    needs: [windows, macos, linux, web]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

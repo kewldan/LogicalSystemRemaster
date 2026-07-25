@@ -48,3 +48,5 @@ out/
 /build/
 build-macos/
 build-static/
+build-linux/
+build-web/

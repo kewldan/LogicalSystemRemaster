@@ -7,18 +7,24 @@ project(LogicalSystem
 
 set(CMAKE_CXX_STANDARD 20)
 
-find_package(glad CONFIG REQUIRED)
-find_package(glfw3 CONFIG REQUIRED)
-find_package(glm CONFIG REQUIRED)
-find_package(plog CONFIG REQUIRED)
-find_package(ZLIB REQUIRED)
-find_package(Stb REQUIRED)
-find_package(imgui CONFIG REQUIRED)
-find_package(base64 CONFIG REQUIRED)
-find_package(nfd CONFIG REQUIRED)
-find_package(nlohmann_json CONFIG REQUIRED)
-find_package(doctest CONFIG REQUIRED)
-find_package(unordered_dense CONFIG REQUIRED)
+if (EMSCRIPTEN)
+    # The web build has no vcpkg: pull header/source deps via FetchContent and
+    # get GLFW/zlib/WebGL2 from emscripten ports.
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/emscripten-deps.cmake)
+else ()
+    find_package(glad CONFIG REQUIRED)
+    find_package(glfw3 CONFIG REQUIRED)
+    find_package(glm CONFIG REQUIRED)
+    find_package(plog CONFIG REQUIRED)
+    find_package(ZLIB REQUIRED)
+    find_package(Stb REQUIRED)
+    find_package(imgui CONFIG REQUIRED)
+    find_package(base64 CONFIG REQUIRED)
+    find_package(nfd CONFIG REQUIRED)
+    find_package(nlohmann_json CONFIG REQUIRED)
+    find_package(doctest CONFIG REQUIRED)
+    find_package(unordered_dense CONFIG REQUIRED)
+endif ()
 
 # Engine: use a local checkout if present, otherwise fetch it from GitHub
 set(ENGINE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../Engine" CACHE PATH "Path to a kewldan/Engine checkout")
@@ -27,25 +33,13 @@ if (EXISTS "${ENGINE_DIR}/CMakeLists.txt")
 else ()
     include(FetchContent)
     # An already populated checkout remains usable when configuring offline;
-    # a missing checkout is still fetched on the first configure.
+    # a missing checkout is still fetched on the first configure. This tag is
+    # cross-platform (Windows, macOS, Linux and Emscripten) out of the box.
     set(FETCHCONTENT_UPDATES_DISCONNECTED_ENGINE ON)
-    if (WIN32)
-        FetchContent_Declare(Engine
-                GIT_REPOSITORY https://github.com/kewldan/Engine.git
-                GIT_TAG f9e1630cb35e271610ee9bcb475a50b3c45b3e07
-        )
-    else ()
-        # Off Windows the upstream Engine needs portability fixes (no Windows.h,
-        # no MSVC string helpers, skip the Winsock networking helpers).
-        FetchContent_Declare(Engine
-                GIT_REPOSITORY https://github.com/kewldan/Engine.git
-                GIT_TAG f9e1630cb35e271610ee9bcb475a50b3c45b3e07
-                PATCH_COMMAND ${CMAKE_COMMAND}
-                -DENGINE_SOURCE_DIR=<SOURCE_DIR>
-                -DPATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/engine-posix.patch
-                -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ApplyEnginePatch.cmake
-        )
-    endif ()
+    FetchContent_Declare(Engine
+            GIT_REPOSITORY https://github.com/kewldan/Engine.git
+            GIT_TAG de8531760902bae258b28ef8bbfc004198452e74
+    )
     FetchContent_MakeAvailable(Engine)
 endif ()
 
@@ -76,18 +70,27 @@ target_compile_definitions(LogicalSystem PRIVATE BLOCK_BATCHING=8192 LS_VERSION=
 target_include_directories(LogicalSystem PRIVATE include ${Stb_INCLUDE_DIR})
 target_link_libraries(LogicalSystem PRIVATE Engine glad::glad glfw glm::glm plog::plog ZLIB::ZLIB aklomp::base64 imgui::imgui nfd::nfd nlohmann_json::nlohmann_json unordered_dense::unordered_dense)
 
-# Runtime asset lookup is relative to the process working directory. macOS
-# launches an app bundle in Contents/Resources; other platforms use the
-# executable directory.
-if (APPLE)
-    set(LS_DATA_DIR "$<TARGET_BUNDLE_CONTENT_DIR:LogicalSystem>/Resources/data")
+if (EMSCRIPTEN)
+    # Bundle data/ into the virtual filesystem and emit a ready-to-serve page.
+    set_target_properties(LogicalSystem PROPERTIES SUFFIX ".html" OUTPUT_NAME "index")
+    target_link_options(LogicalSystem PRIVATE
+            "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/data@data"
+            "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html")
 else ()
-    set(LS_DATA_DIR "$<TARGET_FILE_DIR:LogicalSystem>/data")
+    # Runtime asset lookup is relative to the process working directory. macOS
+    # launches an app bundle in Contents/Resources; other platforms use the
+    # executable directory.
+    if (APPLE)
+        set(LS_DATA_DIR "$<TARGET_BUNDLE_CONTENT_DIR:LogicalSystem>/Resources/data")
+    else ()
+        set(LS_DATA_DIR "$<TARGET_FILE_DIR:LogicalSystem>/data")
+    endif ()
+    add_custom_command(TARGET LogicalSystem POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/data ${LS_DATA_DIR})
 endif ()
-add_custom_command(TARGET LogicalSystem POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_CURRENT_SOURCE_DIR}/data ${LS_DATA_DIR})
 
+if (NOT EMSCRIPTEN)
 add_executable(LogicalSystemBench EXCLUDE_FROM_ALL
         tools/bench.cpp
         src/Block.cpp
@@ -113,3 +116,4 @@ target_include_directories(LogicalSystemTests PRIVATE include ${Stb_INCLUDE_DIR}
 target_link_libraries(LogicalSystemTests PRIVATE doctest::doctest Engine plog::plog nlohmann_json::nlohmann_json ZLIB::ZLIB unordered_dense::unordered_dense)
 add_test(NAME LogicalSystemTests COMMAND LogicalSystemTests
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endif ()

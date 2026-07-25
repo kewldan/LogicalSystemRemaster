@@ -126,6 +126,25 @@ cmake --build --preset linux-release
 
 `data/` is copied next to the executable, so run it from `build-linux/` or ship the two together.
 
+### Web (WebAssembly)
+
+The app also builds to WebAssembly + WebGL2 with [Emscripten](https://emscripten.org/). No vcpkg is needed: GLFW, zlib and WebGL2 come from Emscripten ports and the remaining libraries are fetched during configure.
+
+```sh
+git clone https://github.com/emscripten-core/emsdk.git ~/emsdk
+~/emsdk/emsdk install latest && ~/emsdk/emsdk activate latest
+source ~/emsdk/emsdk_env.sh
+
+emcmake cmake -S . -B build-web -DCMAKE_BUILD_TYPE=Release
+cmake --build build-web -j
+
+# serve (the .wasm must be sent with the right MIME type)
+python3 -m http.server -d build-web 8000
+# open http://localhost:8000/index.html
+```
+
+The build emits `index.html`, `index.js`, `index.wasm` and `index.data` (the bundled `data/` preloaded into the virtual filesystem). Native file dialogs are unavailable in the browser — load schemes from the Examples menu or via Import from clipboard, and share them with Export to clipboard.
+
 Run the tests with:
 
 ```powershell
