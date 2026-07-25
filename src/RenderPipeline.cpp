@@ -96,7 +96,7 @@ void RenderPipeline::resize(int nw, int nh) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
 
     glBindTexture(GL_TEXTURE_2D, gAlbedoHDR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, w, h, 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
 
     for (unsigned int i: pingpongBuffer) {
         glBindTexture(GL_TEXTURE_2D, i);

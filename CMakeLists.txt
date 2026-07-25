@@ -7,6 +7,11 @@ project(LogicalSystem
 
 set(CMAKE_CXX_STANDARD 20)
 
+if (WIN32)
+    # Keep <windows.h> from defining min/max macros that clash with std::min/max.
+    add_compile_definitions(NOMINMAX)
+endif ()
+
 if (EMSCRIPTEN)
     # The web build has no vcpkg: pull header/source deps via FetchContent and
     # get GLFW/zlib/WebGL2 from emscripten ports.
@@ -38,7 +43,7 @@ else ()
     set(FETCHCONTENT_UPDATES_DISCONNECTED_ENGINE ON)
     FetchContent_Declare(Engine
             GIT_REPOSITORY https://github.com/kewldan/Engine.git
-            GIT_TAG de8531760902bae258b28ef8bbfc004198452e74
+            GIT_TAG 31b6383c7b6e2ee07ea43e170502c0b179a4a451
     )
     FetchContent_MakeAvailable(Engine)
 endif ()
