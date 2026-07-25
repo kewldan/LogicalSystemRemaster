@@ -83,9 +83,51 @@ jobs:
           name: LogicalSystem-macos-${{ runner.arch }}
           path: LogicalSystem-macos-${{ runner.arch }}.zip
 
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorg-dev libgl1-mesa-dev libglu1-mesa-dev \
+            libgtk-3-dev pkg-config autoconf automake libtool libltdl-dev
+
+      - name: Cache vcpkg binary archives
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: vcpkg-linux-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-linux-
+
+      - name: Set up vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg "$GITHUB_WORKSPACE/vcpkg"
+          "$GITHUB_WORKSPACE/vcpkg/bootstrap-vcpkg.sh"
+
+      - name: Configure
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+        run: cmake --preset linux
+
+      - name: Build
+        run: cmake --build --preset linux-release
+
+      - name: Test
+        run: ctest --test-dir build-linux --output-on-failure
+
+      - name: Package
+        run: tar -czf LogicalSystem-linux-x64.tar.gz -C build-linux LogicalSystem data
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LogicalSystem-linux-x64
+          path: LogicalSystem-linux-x64.tar.gz
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, macos]
+    needs: [windows, macos, linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -100,3 +142,4 @@ jobs:
           files: |
             release/**/*.exe
             release/**/*.zip
+            release/**/*.tar.gz

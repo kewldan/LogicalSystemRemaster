@@ -29,19 +29,21 @@ else ()
     # An already populated checkout remains usable when configuring offline;
     # a missing checkout is still fetched on the first configure.
     set(FETCHCONTENT_UPDATES_DISCONNECTED_ENGINE ON)
-    if (APPLE)
+    if (WIN32)
+        FetchContent_Declare(Engine
+                GIT_REPOSITORY https://github.com/kewldan/Engine.git
+                GIT_TAG f9e1630cb35e271610ee9bcb475a50b3c45b3e07
+        )
+    else ()
+        # Off Windows the upstream Engine needs portability fixes (no Windows.h,
+        # no MSVC string helpers, skip the Winsock networking helpers).
         FetchContent_Declare(Engine
                 GIT_REPOSITORY https://github.com/kewldan/Engine.git
                 GIT_TAG f9e1630cb35e271610ee9bcb475a50b3c45b3e07
                 PATCH_COMMAND ${CMAKE_COMMAND}
                 -DENGINE_SOURCE_DIR=<SOURCE_DIR>
-                -DPATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/engine-macos.patch
+                -DPATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/engine-posix.patch
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ApplyEnginePatch.cmake
-        )
-    else ()
-        FetchContent_Declare(Engine
-                GIT_REPOSITORY https://github.com/kewldan/Engine.git
-                GIT_TAG f9e1630cb35e271610ee9bcb475a50b3c45b3e07
         )
     endif ()
     FetchContent_MakeAvailable(Engine)

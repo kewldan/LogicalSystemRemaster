@@ -77,7 +77,7 @@ All third-party libraries are managed through the **vcpkg manifest** ([`vcpkg.js
 
 ## 🔨 Building
 
-Requirements: **CMake ≥ 3.25**, a C++20 compiler (MSVC on Windows or Apple Clang on macOS), [vcpkg](https://vcpkg.io/) (`VCPKG_ROOT` environment variable pointing to its checkout).
+Requirements: **CMake ≥ 3.25**, a C++20 compiler (MSVC on Windows, Apple Clang on macOS or GCC/Clang on Linux), [vcpkg](https://vcpkg.io/) (`VCPKG_ROOT` environment variable pointing to its checkout).
 
 ```powershell
 git clone https://github.com/kewldan/LogicalSystemRemaster.git
@@ -107,6 +107,24 @@ open build-macos/LogicalSystem.app
 ```
 
 The build produces a native `.app` bundle for the host architecture (Apple Silicon on ARM Macs, Intel on Intel Macs). The bundled `data/` directory is placed inside the application, so the app can be moved or launched from Finder.
+
+### Linux
+
+Install the OpenGL/GLFW/GTK development packages, clone/bootstrap vcpkg, then configure and build:
+
+```sh
+sudo apt-get install -y xorg-dev libgl1-mesa-dev libglu1-mesa-dev libgtk-3-dev \
+  pkg-config autoconf automake libtool libltdl-dev
+git clone https://github.com/microsoft/vcpkg.git ~/vcpkg
+~/vcpkg/bootstrap-vcpkg.sh
+export VCPKG_ROOT="$HOME/vcpkg"
+
+cmake --preset linux
+cmake --build --preset linux-release
+./build-linux/LogicalSystem
+```
+
+`data/` is copied next to the executable, so run it from `build-linux/` or ship the two together.
 
 Run the tests with:
 

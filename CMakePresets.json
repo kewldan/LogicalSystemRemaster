@@ -30,6 +30,15 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "linux",
+      "displayName": "Linux (uses VCPKG_ROOT)",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-linux",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     }
   ],
   "buildPresets": [
@@ -51,6 +60,11 @@
     {
       "name": "macos-release",
       "configurePreset": "macos",
+      "configuration": "Release"
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux",
       "configuration": "Release"
     }
   ]

@@ -1,13 +1,13 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a854f8e..3639ab2 100644
+index a854f8e..3779ee7 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -11,6 +11,11 @@ find_package(ZLIB REQUIRED)
  
  file(GLOB_RECURSE SRCS ${PROJECT_SOURCE_DIR}/src/*.cpp ${PROJECT_SOURCE_DIR}/thirdparty/*.cpp)
  
-+if (APPLE)
-+    # Logical System does not use Engine's Winsock-only networking helpers.
++if (NOT WIN32)
++    # The networking helpers are Winsock-only; skip them off Windows.
 +    list(FILTER SRCS EXCLUDE REGEX "/network/")
 +endif ()
 +
