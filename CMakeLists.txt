@@ -18,6 +18,7 @@ find_package(base64 CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(doctest CONFIG REQUIRED)
+find_package(unordered_dense CONFIG REQUIRED)
 
 # Engine: use a local checkout if present, otherwise fetch it from GitHub
 set(ENGINE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../Engine" CACHE PATH "Path to a kewldan/Engine checkout")
@@ -71,7 +72,7 @@ endif ()
 
 target_compile_definitions(LogicalSystem PRIVATE BLOCK_BATCHING=8192 LS_VERSION="${PROJECT_VERSION}")
 target_include_directories(LogicalSystem PRIVATE include ${Stb_INCLUDE_DIR})
-target_link_libraries(LogicalSystem PRIVATE Engine glad::glad glfw glm::glm plog::plog ZLIB::ZLIB aklomp::base64 imgui::imgui nfd::nfd nlohmann_json::nlohmann_json)
+target_link_libraries(LogicalSystem PRIVATE Engine glad::glad glfw glm::glm plog::plog ZLIB::ZLIB aklomp::base64 imgui::imgui nfd::nfd nlohmann_json::nlohmann_json unordered_dense::unordered_dense)
 
 # Runtime asset lookup is relative to the process working directory. macOS
 # launches an app bundle in Contents/Resources; other platforms use the
@@ -85,6 +86,16 @@ add_custom_command(TARGET LogicalSystem POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/data ${LS_DATA_DIR})
 
+add_executable(LogicalSystemBench EXCLUDE_FROM_ALL
+        tools/bench.cpp
+        src/Block.cpp
+        src/BlockCatalog.cpp
+        src/Simulation.cpp
+        src/Scheme.cpp
+)
+target_include_directories(LogicalSystemBench PRIVATE include ${Stb_INCLUDE_DIR})
+target_link_libraries(LogicalSystemBench PRIVATE Engine plog::plog nlohmann_json::nlohmann_json ZLIB::ZLIB unordered_dense::unordered_dense)
+
 enable_testing()
 add_executable(LogicalSystemTests
         tests/tests.cpp
@@ -97,6 +108,6 @@ add_executable(LogicalSystemTests
         src/SmoothZoom.cpp
 )
 target_include_directories(LogicalSystemTests PRIVATE include ${Stb_INCLUDE_DIR})
-target_link_libraries(LogicalSystemTests PRIVATE doctest::doctest Engine plog::plog nlohmann_json::nlohmann_json ZLIB::ZLIB)
+target_link_libraries(LogicalSystemTests PRIVATE doctest::doctest Engine plog::plog nlohmann_json::nlohmann_json ZLIB::ZLIB unordered_dense::unordered_dense)
 add_test(NAME LogicalSystemTests COMMAND LogicalSystemTests
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

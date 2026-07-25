@@ -2,10 +2,12 @@
 
 #include "Block.h"
 
+#include <ankerl/unordered_dense.h>
 #include <unordered_map>
-#include <unordered_set>
 
 typedef std::unordered_map<long long, Block> Blocks;
+
+using KeySet = ankerl::unordered_dense::set<long long>;
 
 // Event-driven simulation. Stable signals are kept as persistent connection
 // counts; a tick only applies blocks whose output changed and re-evaluates
@@ -24,18 +26,18 @@ public:
     void rebuild();
 
 private:
-    std::unordered_set<long long> clocks;
-    std::unordered_map<long long, int> buttonPulses;
-    std::unordered_set<long long> dirty;    // outputs to apply on the next tick
-    std::unordered_set<long long> pending;  // cells to evaluate on the next tick
-    std::unordered_map<long long, BlockConnectionCount> connections; // persistent input counts
-    Blocks applied; // active output state currently reflected in connections
+    KeySet clocks;
+    ankerl::unordered_dense::map<long long, int> buttonPulses;
+    KeySet dirty;    // outputs to apply on the next tick
+    KeySet pending;  // cells to evaluate on the next tick
+    ankerl::unordered_dense::map<long long, BlockConnectionCount> connections; // persistent input counts
+    ankerl::unordered_dense::map<long long, Block> applied; // active output state currently reflected in connections
 
     void adjustOutput(const Block &block, long long key, int delta,
-                      std::unordered_set<long long> &affected);
+                      KeySet &affected);
 
     void adjustConnection(int x, int y, int delta,
-                          std::unordered_set<long long> &affected);
+                          KeySet &affected);
 
     void evaluate(long long key, BlockConnectionCount count);
 

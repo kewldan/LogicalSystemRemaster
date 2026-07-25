@@ -12,22 +12,24 @@ bool pointsAt(const Block &block, int sx, int sy, int tx, int ty) {
 }
 
 void Circuit::adjustConnection(int x, int y, int delta,
-                               std::unordered_set<long long> &affected) {
+                               KeySet &affected) {
     long long key = Block_TO_LONG(x, y);
     if (!blocks.contains(key)) return;
 
-    int count = connections.contains(key) ? connections[key] : 0;
-    count += delta;
+    auto it = connections.find(key);
+    int count = (it != connections.end() ? it->second : 0) + delta;
     if (count <= 0) {
-        connections.erase(key);
+        if (it != connections.end()) connections.erase(it);
+    } else if (it != connections.end()) {
+        it->second = static_cast<BlockConnectionCount>(count);
     } else {
-        connections[key] = static_cast<BlockConnectionCount>(count);
+        connections.emplace(key, static_cast<BlockConnectionCount>(count));
     }
     affected.insert(key);
 }
 
 void Circuit::adjustOutput(const Block &block, long long key, int delta,
-                           std::unordered_set<long long> &affected) {
+                           KeySet &affected) {
     int x = Block_X(key);
     int y = Block_Y(key);
     const BlockOutputs outputs = blockOutputs(block.typeId, block.rotation);
@@ -62,9 +64,9 @@ void Circuit::tick() {
 
     // Work from a snapshot: outputs activated by evaluation below propagate
     // on the following tick, preserving the original one-cell-per-tick rule.
-    std::unordered_set<long long> transitions = std::move(dirty);
+    KeySet transitions = std::move(dirty);
     dirty.clear();
-    std::unordered_set<long long> affected = std::move(pending);
+    KeySet affected = std::move(pending);
     pending.clear();
 
     for (long long key: transitions) {
