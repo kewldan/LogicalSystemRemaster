@@ -24,6 +24,8 @@ public:
 
     int run();
 
+    void frame();
+
 private:
     enum class PendingAction {
         None, NewScheme, OpenScheme, OpenRecent, Exit

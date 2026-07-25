@@ -21,6 +21,10 @@
 #include <windows.h>
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
+#elif defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#elif defined(__linux__)
+#include <unistd.h>
 #endif
 
 #if defined(__APPLE__)
@@ -30,6 +34,12 @@
 #endif
 
 static const nfdfilteritem_t schemeFilter[] = {{"Logical System schemes", "bson,ls"}};
+
+#ifdef __EMSCRIPTEN__
+static void emscriptenFrame(void *self) {
+    static_cast<Application *>(self)->frame();
+}
+#endif
 
 static float map(float value, float max1, float min2, float max2) {
     return min2 + value * (max2 - min2) / max1;
@@ -52,6 +62,13 @@ static void setWorkingDirectoryToExecutable() {
     if (_NSGetExecutablePath(executablePath.data(), &size) == 0) {
         std::filesystem::current_path(std::filesystem::path(executablePath.c_str()).parent_path());
     }
+#elif defined(__linux__)
+    char executablePath[4096];
+    ssize_t length = readlink("/proc/self/exe", executablePath, sizeof(executablePath) - 1);
+    if (length > 0) {
+        executablePath[length] = '\0';
+        std::filesystem::current_path(std::filesystem::path(executablePath).parent_path());
+    }
 #endif
 }
 
@@ -60,6 +77,11 @@ static void openUrl(const char *url) {
     ShellExecuteA(nullptr, nullptr, url, nullptr, nullptr, SW_SHOW);
 #elif defined(__APPLE__)
     std::string command = "open \"" + std::string(url) + "\"";
+    std::system(command.c_str());
+#elif defined(__EMSCRIPTEN__)
+    EM_ASM({ window.open(UTF8ToString($0), "_blank"); }, url);
+#elif defined(__linux__)
+    std::string command = "xdg-open \"" + std::string(url) + "\" &";
     std::system(command.c_str());
 #endif
 }
@@ -259,20 +281,12 @@ int Application::run() {
     lastAutosavedRevision = blocks.revision();
     nextAutosave = glfwGetTime() + 5.0;
 
+#ifdef __EMSCRIPTEN__
+    emscripten_set_main_loop_arg(emscriptenFrame, this, 0, true);
+    return 0;
+#else
     while (running) {
-        beginFrame();
-        updateCameraPan();
-        updateZoom();
-        camera.update();
-        stepSimulation();
-        computeHoveredCell();
-        renderScene();
-        handleInput();
-        handleBoxSelect();
-        autosave();
-        drawGui();
-        updateTitle();
-        handleWindowClose();
+        frame();
     }
 
     settings.width = window.width;
@@ -285,6 +299,23 @@ int Application::run() {
     Engine::HUD::destroy();
     NFD_Quit();
     return 0;
+#endif
+}
+
+void Application::frame() {
+    beginFrame();
+    updateCameraPan();
+    updateZoom();
+    camera->update();
+    stepSimulation();
+    computeHoveredCell();
+    renderScene();
+    handleInput();
+    handleBoxSelect();
+    autosave();
+    drawGui();
+    updateTitle();
+    handleWindowClose();
 }
 
 void Application::beginFrame() {
