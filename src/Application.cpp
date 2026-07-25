@@ -786,6 +786,7 @@ void Application::drawDebugOverlay() {
                                          ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove)) {
         ImGui::Text("FPS: %.0f", io->Framerate);
         ImGui::Text("Tick: %.1fms", blocks.tickTime);
+        ImGui::Text("GL: 0x%x  FBO: 0x%x", glGetError(), pipeline->framebufferStatus());
     }
     ImGui::End();
     ImGui::PopStyleVar();

@@ -26,7 +26,12 @@ private:
     Engine::Shader *gShader, *blurShader, *finalShader, *backgroundShader, *selectionShader;
     unsigned int FBO{}, gAlbedo{}, gAlbedoHDR{}, screenVAO{}, screenVBO{}, quadVAO{}, quadVBO{};
     int bloomW, bloomH; // bloom is blurred at half resolution
+    int fboStatus{};
 public:
+    [[nodiscard]] int framebufferStatus() const {
+        return fboStatus;
+    }
+
     int w, h;
     glm::vec3 blockDefaultColor{}, blockGlowColor{};
     bool bloom = true;

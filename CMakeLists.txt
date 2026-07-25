@@ -43,7 +43,7 @@ else ()
     set(FETCHCONTENT_UPDATES_DISCONNECTED_ENGINE ON)
     FetchContent_Declare(Engine
             GIT_REPOSITORY https://github.com/kewldan/Engine.git
-            GIT_TAG 31b6383c7b6e2ee07ea43e170502c0b179a4a451
+            GIT_TAG ea5e0d3531a14052e71e361e075afe6378b61a57
     )
     FetchContent_MakeAvailable(Engine)
 endif ()

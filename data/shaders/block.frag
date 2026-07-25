@@ -2,23 +2,19 @@
 layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec4 gAlbedoHDR;
 
-in Vertex {
-    vec3 texCoord;
-    float state;
-    float selection;
-} vertex;
+in vec3 v_texCoord;
+in float v_state;
+in float v_selection;
 
-uniform sampler2DArray tex;
+uniform highp sampler2DArray tex;
 uniform vec3 selectionColor, ON, OFF;
 uniform float alpha;
 
-#define BLOOM_STRENGTH 2
-
 void main()
 {
-    gAlbedo = texture(tex, vertex.texCoord);
-    gAlbedo.rgb = mix(mix(OFF, ON, vertex.state), gAlbedo.rgb, gAlbedo.a);
-    gAlbedoHDR = vec4(mix(vec3(0), ON * 2, (1 - gAlbedo.a) * vertex.state), 1.0);
+    gAlbedo = texture(tex, v_texCoord);
+    gAlbedo.rgb = mix(mix(OFF, ON, v_state), gAlbedo.rgb, gAlbedo.a);
+    gAlbedoHDR = vec4(mix(vec3(0.0), ON * 2.0, (1.0 - gAlbedo.a) * v_state), 1.0);
     gAlbedo.a = alpha;
-    gAlbedo.rgb *= mix(vec3(1.0), selectionColor, vertex.selection);
+    gAlbedo.rgb *= mix(vec3(1.0), selectionColor, v_selection);
 }

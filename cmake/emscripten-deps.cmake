@@ -4,8 +4,11 @@ include(FetchContent)
 # modern CMake rejects; treat those old minimums as 3.5.
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
+# The built-in -sUSE_GLFW=3 port has incomplete input handling; the contrib
+# port (pongasoft/emscripten-glfw) has proper keyboard, mouse and HiDPI support.
+add_compile_options(--use-port=contrib.glfw3)
 add_link_options(
-        -sUSE_GLFW=3
+        --use-port=contrib.glfw3
         -sUSE_ZLIB=1
         -sMIN_WEBGL_VERSION=2
         -sMAX_WEBGL_VERSION=2

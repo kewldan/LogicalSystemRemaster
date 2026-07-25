@@ -38,7 +38,8 @@ RenderPipeline::RenderPipeline(Engine::Shader *blockShader, Engine::Shader *blur
     unsigned int attachments[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
     glDrawBuffers(2, attachments);
 
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
         PLOGE << "Framebuffer not complete!";
     }
 
@@ -103,6 +104,8 @@ void RenderPipeline::resize(int nw, int nh) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, bloomW, bloomH, 0, GL_RGBA, GL_FLOAT, nullptr);
     }
 
+    glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+    fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
