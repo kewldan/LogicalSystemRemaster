@@ -129,7 +129,7 @@ static void openUrl(const char *url) {
 #ifdef _WIN32
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 #else
-int main() {
+int main(int argc, char **argv) {
 #endif
     setWorkingDirectoryToExecutable();
     if (NFD_Init() != NFD_OKAY) return 1;
@@ -190,6 +190,11 @@ int main() {
 
     BlockManager blocks(&window, quadVertices, (int) sizeof(quadVertices));
     blocks.TPS = settings.tps;
+#ifndef _WIN32
+    if (argc > 1) {
+        loadSchemePath(blocks, &camera, argv[1], storage, settings);
+    }
+#endif
 
     int blockX, blockY;
     bool running = true;
@@ -307,14 +312,14 @@ int main() {
         static double tickAccumulator = 0.0;
         if (blocks.simulate) {
             tickAccumulator += io->DeltaTime;
-            double period = 1.0 / (double) std::clamp(blocks.TPS, 1, 1000);
+            double period = 1.0 / (double) std::clamp(blocks.TPS, 1, 65536);
             int steps = 0;
-            while (tickAccumulator >= period && steps < 8) {
+            while (tickAccumulator >= period && steps < 8192) {
                 blocks.update();
                 tickAccumulator -= period;
                 steps++;
             }
-            if (steps == 8) tickAccumulator = 0.0; // fell behind, do not spiral
+            if (steps == 8192) tickAccumulator = 0.0; // fell behind, do not spiral
         } else {
             tickAccumulator = 0.0;
         }
@@ -704,6 +709,12 @@ int main() {
                             blocks.load_example(&camera, "data/examples/full-adder.bson", "Full adder");
                         if (ImGui::MenuItem("4-bit adder"))
                             blocks.load_example(&camera, "data/examples/adder-4bit.bson", "4-bit adder");
+                        if (ImGui::MenuItem("8-bit click adder + decimal display"))
+                            blocks.load_example(&camera, "data/examples/click-adder.bson",
+                                                "8-bit click adder + decimal display");
+                        if (ImGui::MenuItem("16-bit SUBLEQ + 1 KiB RAM"))
+                            blocks.load_example(&camera, "data/examples/cpu16-1k.bson",
+                                                "16-bit SUBLEQ + 1 KiB RAM");
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Graphics")) {
@@ -730,10 +741,11 @@ int main() {
                         blocks.update();
                     }
                 }
-                ImGui::SliderInt("TPS", &blocks.TPS, 2, 256);
+                ImGui::SliderInt("TPS", &blocks.TPS, 2, 65536, "%d",
+                                 ImGuiSliderFlags_Logarithmic);
                 if (ImGui::IsItemHovered()) {
                     ImGui::BeginTooltip();
-                    ImGui::Text("Simulation ticks per second");
+                    ImGui::Text("Simulation ticks per second (use Turbo rates for large computers)");
                     ImGui::EndTooltip();
                 }
                 ImGui::SeparatorText("Blocks");

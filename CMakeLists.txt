@@ -73,9 +73,14 @@ target_compile_definitions(LogicalSystem PRIVATE BLOCK_BATCHING=8192 LS_VERSION=
 target_include_directories(LogicalSystem PRIVATE include ${Stb_INCLUDE_DIR})
 target_link_libraries(LogicalSystem PRIVATE Engine glad::glad glfw glm::glm plog::plog ZLIB::ZLIB aklomp::base64 imgui::imgui nfd::nfd nlohmann_json::nlohmann_json)
 
-# Runtime asset lookup is relative to the executable on every platform. For a
-# macOS bundle that means Contents/MacOS/data, not Contents/Resources/data.
-set(LS_DATA_DIR "$<TARGET_FILE_DIR:LogicalSystem>/data")
+# Runtime asset lookup is relative to the process working directory. macOS
+# launches an app bundle in Contents/Resources; other platforms use the
+# executable directory.
+if (APPLE)
+    set(LS_DATA_DIR "$<TARGET_BUNDLE_CONTENT_DIR:LogicalSystem>/Resources/data")
+else ()
+    set(LS_DATA_DIR "$<TARGET_FILE_DIR:LogicalSystem>/data")
+endif ()
 add_custom_command(TARGET LogicalSystem POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/data ${LS_DATA_DIR})

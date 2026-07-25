@@ -152,7 +152,9 @@ class Board:
         return self.blocks[(x, y)][2]
 
 
-def save(board, name, cx, cy, zoom=1.0):
+def save(board, name, cx, cy, zoom=1.0, timestamp=None):
+    if timestamp is None:
+        timestamp = int(time.time() * 1000)
     arr = []
     for (x, y), (t, r, a) in sorted(board.blocks.items()):
         pos = ((x << 32) | (y & 0xFFFFFFFF)) & 0xFFFFFFFFFFFFFFFF
@@ -161,7 +163,7 @@ def save(board, name, cx, cy, zoom=1.0):
         arr.append({"pos": pos, "type": t, "rotation": r, "active": bool(a)})
     doc = {
         "camera": {"position": {"x": 32.0 * cx - 640.0, "y": 32.0 * cy - 360.0}, "zoom": float(zoom)},
-        "meta": {"version": 1, "timestamp": int(time.time() * 1000)},
+        "meta": {"version": 1, "timestamp": timestamp},
         "blocks": arr,
     }
     os.makedirs("data/examples", exist_ok=True)

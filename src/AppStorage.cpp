@@ -19,7 +19,7 @@ std::filesystem::path normalizedPath(const std::string &value) {
 void clampSettings(AppSettings &settings) {
     settings.width = std::clamp(settings.width, 640, 7680);
     settings.height = std::clamp(settings.height, 480, 4320);
-    settings.tps = std::clamp(settings.tps, 1, 256);
+    settings.tps = std::clamp(settings.tps, 1, 65536);
     if (settings.recentFiles.size() > RECENT_FILE_LIMIT) {
         settings.recentFiles.resize(RECENT_FILE_LIMIT);
     }

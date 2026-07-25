@@ -17,8 +17,8 @@ A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.3.0).
 ## ✨ Features
 
 - 🧩 **16 block types** — 7 wire variants (straight, angled, T, cross, jumps), NOT, AND, NAND, XOR, NXOR, Switch, Clock, Lamp and a momentary Button ([block reference](docs/blocks.md))
-- ⚡ **Event-driven simulation** — a tick only visits blocks whose inputs changed, so idle parts of a scheme cost nothing; adjustable rate (2–256 TPS), pause & single-step mode
-- 📚 **Built-in examples** — blinker, logic gates, RS latch, full adder and a 4-bit ripple-carry adder (Examples menu); every bundled scheme is simulated and its full truth table asserted before it ships
+- ⚡ **Event-driven simulation** — a tick only visits blocks whose inputs changed, so idle parts of a scheme cost nothing; logarithmic 2–65,536 TPS range, pause & single-step mode
+- 📚 **Built-in examples** — blinker, logic gates, RS latch, adders, an [interactive 8-bit click adder with decimal seven-segment displays](docs/click-adder.md), and an [autonomous 16-bit SUBLEQ computer with 1 KiB of gate-level RAM](docs/cpu16.md) (Examples menu)
 - ✏️ **Fast editing** — ghost preview under the cursor, drag to paint auto-rotating wire traces, floating paste placed with a click, move/rotate whole selections, block pipette on middle click
 - ↩️ **Undo / redo** — Ctrl+Z / Ctrl+Y with gesture grouping: a paint stroke, paste or mass delete is one step
 - 🚀 **Batched instanced rendering** — 12-byte instances from a texture atlas, chunked culling so only visible chunks are walked

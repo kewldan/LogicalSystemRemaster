@@ -36,6 +36,14 @@ static void setSwitch(Circuit &c, int x, int y, bool on) {
     c.invalidate(x, y);
 }
 
+static void pressButton(Circuit &c, int x, int y) {
+    auto it = c.blocks.find(Block_TO_LONG(x, y));
+    REQUIRE(it != c.blocks.end());
+    REQUIRE(it->second.typeId == BLOCK_BUTTON);
+    it->second.active = true;
+    c.invalidate(x, y);
+}
+
 static void settle(Circuit &c, int ticks = 40) {
     for (int i = 0; i < ticks; i++) c.tick();
 }
@@ -353,21 +361,21 @@ TEST_CASE("example: RS latch holds state") {
     CHECK(lamp(c, -1, 0));
 }
 
-TEST_CASE("button emits a single-tick pulse") {
+TEST_CASE("button emits a latch-friendly momentary pulse") {
     Circuit c;
     put(c, 0, 0, BLOCK_BUTTON, 0, true); // just pressed
     put(c, 1, 0, 0, 1);
     put(c, 2, 0, 14);
     c.rebuild();
 
-    c.tick(); // button pulses and releases itself
-    CHECK_FALSE(c.blocks[Block_TO_LONG(0, 0)].active);
+    c.tick();
+    CHECK(c.blocks[Block_TO_LONG(0, 0)].active);
     CHECK(lamp(c, 1, 0));
     c.tick();
     CHECK(lamp(c, 2, 0));
-    c.tick();
-    CHECK_FALSE(lamp(c, 1, 0)); // pulse has moved on
-    c.tick();
+    settle(c, BUTTON_PULSE_TICKS);
+    CHECK_FALSE(c.blocks[Block_TO_LONG(0, 0)].active);
+    CHECK_FALSE(lamp(c, 1, 0));
     c.tick();
     CHECK_FALSE(lamp(c, 2, 0));
 }
@@ -444,4 +452,120 @@ TEST_CASE("example: 4-bit ripple-carry adder, all 512 combinations") {
             }
         }
     }
+}
+
+static unsigned readCpuRamWord(Circuit &c, int address) {
+    constexpr int BANK_X0 = 700;
+    constexpr int BANK_PITCH = 520;
+    constexpr int RAM_Y0 = -200;
+    constexpr int ROW_PITCH = 20;
+    constexpr int BIT_PITCH = 22;
+    int bank = address / 128;
+    int row = address % 128;
+    int base = BANK_X0 + bank * BANK_PITCH;
+    int y = RAM_Y0 - row * ROW_PITCH;
+    unsigned value = 0;
+    for (int bit = 0; bit < 16; bit++) {
+        int qx = base + 80 + bit * BIT_PITCH + 7;
+        auto found = c.blocks.find(Block_TO_LONG(qx, y + 2));
+        REQUIRE(found != c.blocks.end());
+        REQUIRE(found->second.typeId == 9); // Q side of the NAND latch
+        if (found->second.active) value |= 1u << bit;
+    }
+    return value;
+}
+
+static unsigned readCpuRegister(Circuit &c, int y) {
+    constexpr int X0 = 700 + 80;
+    constexpr int BIT_PITCH = 22;
+    unsigned value = 0;
+    for (int bit = 0; bit < 16; bit++) {
+        auto found = c.blocks.find(Block_TO_LONG(X0 + bit * BIT_PITCH + 7, y + 2));
+        REQUIRE(found != c.blocks.end());
+        if (found->second.active) value |= 1u << bit;
+    }
+    return value;
+}
+
+TEST_CASE("example: autonomous 16-bit SUBLEQ decrements gate-level 1 KiB RAM") {
+    Circuit c = loadExample("data/examples/cpu16-1k.bson");
+    CHECK(c.blocks.size() > 900000); // no hidden word-level RAM component
+    REQUIRE(readCpuRamWord(c, 100) == 1);
+    REQUIRE(readCpuRamWord(c, 101) == 5);
+
+    // One complete 18-phase instruction is 88,632 ticks. Leave margin for
+    // initial propagation from the timing ring into the control matrix.
+    settle(c, 100000);
+
+    CHECK(readCpuRegister(c, 240) == 102); // next instruction has begun
+    CHECK(readCpuRegister(c, 220) == 101);
+    CHECK(readCpuRegister(c, 200) == 6);
+    CHECK(readCpuRegister(c, 180) == 1);
+    CHECK(readCpuRegister(c, 160) == 5);
+    CHECK(readCpuRamWord(c, 101) == 4);
+
+    // Let the demo finish all five decrements. If the <= 0 branch is broken,
+    // execution returns through address 3 and underflows the counter instead
+    // of remaining in the halt loop at address 6.
+    settle(c, 900000);
+    CHECK(readCpuRamWord(c, 101) == 0);
+}
+
+static unsigned readClickAdderRegister(Circuit &c, int y, int bits) {
+    constexpr int X0 = 700 + 80;
+    constexpr int PITCH = 22;
+    unsigned value = 0;
+    for (int bit = 0; bit < bits; bit++) {
+        auto found = c.blocks.find(Block_TO_LONG(X0 + bit * PITCH + 7, y + 2));
+        REQUIRE(found != c.blocks.end());
+        if (found->second.active) value |= 1u << bit;
+    }
+    return value;
+}
+
+static void checkDecimalDisplay(Circuit &c, int decoderBase, unsigned value) {
+    constexpr unsigned masks[10] = {
+        0x3f, 0x06, 0x5b, 0x4f, 0x66,
+        0x6d, 0x7d, 0x07, 0x7f, 0x6f
+    };
+    constexpr int segmentX[7] = {12, 30, 30, 18, 9, 9, 15};
+    constexpr int segmentY[7] = {30, 22, 7, 0, 7, 22, 15};
+    const unsigned digits[3] = {
+        value / 100, (value / 10) % 10, value % 10
+    };
+
+    for (int digit = 0; digit < 3; digit++) {
+        for (int segment = 0; segment < 7; segment++) {
+            CAPTURE(value);
+            CAPTURE(digit);
+            CAPTURE(segment);
+            CHECK(lamp(c,
+                       decoderBase + 70 + digit * 45 + segmentX[segment],
+                       1120 + segmentY[segment]) ==
+                  ((masks[digits[digit]] >> segment) & 1u));
+        }
+    }
+}
+
+TEST_CASE("example: click adder counts two inputs and latches their sum") {
+    Circuit c = loadExample("data/examples/click-adder.bson");
+
+    pressButton(c, 1540, 1400);
+    settle(c, 8000);
+    CHECK(readClickAdderRegister(c, 300, 8) == 1);
+
+    pressButton(c, 1570, 1400);
+    settle(c, 5000);
+    CHECK(readClickAdderRegister(c, 240, 8) == 1);
+    CHECK(readClickAdderRegister(c, 260, 8) == 1);
+    pressButton(c, 1570, 1400);
+    settle(c, 5000);
+    CHECK(readClickAdderRegister(c, 260, 8) == 2);
+
+    pressButton(c, 1600, 1400);
+    settle(c, 4000);
+    CHECK(readClickAdderRegister(c, 220, 16) == 3);
+    checkDecimalDisplay(c, 1250, 1);
+    checkDecimalDisplay(c, 1550, 2);
+    checkDecimalDisplay(c, 1850, 3);
 }

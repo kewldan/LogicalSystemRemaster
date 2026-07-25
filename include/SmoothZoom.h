@@ -5,7 +5,7 @@
 class SmoothZoom {
 public:
     static constexpr float MIN_ZOOM = 0.65f;
-    static constexpr float MAX_ZOOM = 3.5f;
+    static constexpr float MAX_ZOOM = 21.0f;
 
     explicit SmoothZoom(float zoom = 1.f);
 

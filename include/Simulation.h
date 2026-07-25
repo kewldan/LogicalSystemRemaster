@@ -7,9 +7,10 @@
 
 typedef std::unordered_map<long long, Block> Blocks;
 
-// Event-driven simulation: a tick only walks the currently emitting blocks
-// and re-evaluates cells whose inputs could have changed since the previous
-// tick, so idle parts of a scheme cost nothing.
+// Event-driven simulation. Stable signals are kept as persistent connection
+// counts; a tick only applies blocks whose output changed and re-evaluates
+// their destinations. This matters for large sequential schemes, where half
+// of every latch can remain active for millions of ticks without doing work.
 class Circuit {
 public:
     Blocks blocks;
@@ -23,16 +24,23 @@ public:
     void rebuild();
 
 private:
-    std::unordered_set<long long> emitters; // active blocks except clocks
     std::unordered_set<long long> clocks;
-    std::unordered_set<long long> pending;  // cells to re-evaluate on the next tick
-    std::unordered_map<long long, BlockConnectionCount> connections; // per-tick scratch
+    std::unordered_map<long long, int> buttonPulses;
+    std::unordered_set<long long> dirty;    // outputs to apply on the next tick
+    std::unordered_set<long long> pending;  // cells to evaluate on the next tick
+    std::unordered_map<long long, BlockConnectionCount> connections; // persistent input counts
+    Blocks applied; // active output state currently reflected in connections
 
-    void emit(const Block &block, long long key);
+    void adjustOutput(const Block &block, long long key, int delta,
+                      std::unordered_set<long long> &affected);
 
-    void connect(int x, int y);
+    void adjustConnection(int x, int y, int delta,
+                          std::unordered_set<long long> &affected);
 
-    void connect(int x, int y, BlockRotation rotation, int l);
+    void adjustConnection(int x, int y, BlockRotation rotation, int l, int delta,
+                          std::unordered_set<long long> &affected);
 
     void evaluate(long long key, BlockConnectionCount count);
+
+    BlockConnectionCount incomingCount(int x, int y) const;
 };
