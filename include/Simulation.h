@@ -37,9 +37,6 @@ private:
     void adjustConnection(int x, int y, int delta,
                           std::unordered_set<long long> &affected);
 
-    void adjustConnection(int x, int y, BlockRotation rotation, int l, int delta,
-                          std::unordered_set<long long> &affected);
-
     void evaluate(long long key, BlockConnectionCount count);
 
     BlockConnectionCount incomingCount(int x, int y) const;

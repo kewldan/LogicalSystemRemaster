@@ -15,22 +15,22 @@ long long Block_TO_LONG(int x, int y) {
 
 bool isBlockActive(BlockId id, BlockConnectionCount connections) {
     switch (id) {
-        case 7: // NOT
+        case BLOCK_NOT:
             return connections == 0;
-        case 8: // AND
+        case BLOCK_AND:
             return connections >= 2;
-        case 9: // NAND
+        case BLOCK_NAND:
             return connections < 2;
-        case 10: // XOR
+        case BLOCK_XOR:
             return connections % 2 != 0;
-        case 11: // NXOR
+        case BLOCK_NXOR:
             return connections % 2 == 0;
         case BLOCK_SWITCH:
         case BLOCK_BUTTON:
             return false;
         case BLOCK_CLOCK:
             return connections == 0;
-        default: // wires & lamp
+        default:
             return connections > 0;
     }
 }

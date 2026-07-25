@@ -24,3 +24,65 @@ const BlockDescription &describeBlock(BlockId id) {
     static constexpr BlockDescription unknown{"Unknown block", "No description available"};
     return id < descriptions.size() ? descriptions[id] : unknown;
 }
+
+namespace {
+struct BlockShape {
+    int count;
+    struct {
+        int dirDelta, length;
+    } outputs[4];
+};
+
+constexpr std::array<BlockShape, BLOCK_TYPE_COUNT> shapes{{
+        {1, {{0, 1}}},
+        {2, {{0, 1}, {1, 1}}},
+        {2, {{0, 1}, {-1, 1}}},
+        {2, {{-1, 1}, {1, 1}}},
+        {3, {{-1, 1}, {0, 1}, {1, 1}}},
+        {1, {{0, 2}}},
+        {1, {{0, 3}}},
+        {1, {{0, 1}}},
+        {1, {{0, 1}}},
+        {1, {{0, 1}}},
+        {1, {{0, 1}}},
+        {1, {{0, 1}}},
+        {4, {{0, 1}, {1, 1}, {2, 1}, {3, 1}}},
+        {1, {{0, 1}}},
+        {0, {}},
+        {4, {{0, 1}, {1, 1}, {2, 1}, {3, 1}}}
+}};
+
+void directionOffset(BlockRotation direction, int length, int &dx, int &dy) {
+    switch (direction) {
+        case 0:
+            dx = 0;
+            dy = length;
+            break;
+        case 1:
+            dx = length;
+            dy = 0;
+            break;
+        case 2:
+            dx = 0;
+            dy = -length;
+            break;
+        default:
+            dx = -length;
+            dy = 0;
+            break;
+    }
+}
+}
+
+BlockOutputs blockOutputs(BlockId id, BlockRotation rotation) {
+    BlockOutputs result{};
+    if (id >= shapes.size()) return result;
+    const BlockShape &shape = shapes[id];
+    for (int i = 0; i < shape.count; i++) {
+        const BlockRotation direction = rotateBlock(rotation, shape.outputs[i].dirDelta);
+        directionOffset(direction, shape.outputs[i].length,
+                        result.cells[result.count].dx, result.cells[result.count].dy);
+        result.count++;
+    }
+    return result;
+}

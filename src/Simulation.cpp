@@ -1,52 +1,13 @@
 #include "Simulation.h"
-
-#include <cstdlib>
+#include "BlockCatalog.h"
 
 namespace {
 bool pointsAt(const Block &block, int sx, int sy, int tx, int ty) {
-    auto points = [&](BlockRotation rotation, int length = 1) {
-        switch (rotation) {
-            case 0:
-                return sx == tx && sy + length == ty;
-            case 1:
-                return sx + length == tx && sy == ty;
-            case 2:
-                return sx == tx && sy - length == ty;
-            case 3:
-                return sx - length == tx && sy == ty;
-            default:
-                return false;
-        }
-    };
-
-    const BlockRotation r = block.rotation;
-    switch (block.typeId) {
-        case 0:
-        case 7:
-        case 8:
-        case 9:
-        case 10:
-        case 11:
-        case BLOCK_CLOCK:
-            return points(r);
-        case 5:
-            return points(r, 2);
-        case 6:
-            return points(r, 3);
-        case 1:
-            return points(r) || points(rotateBlock(r, 1));
-        case 2:
-            return points(r) || points(rotateBlock(r, -1));
-        case 3:
-            return points(rotateBlock(r, -1)) || points(rotateBlock(r, 1));
-        case 4:
-            return points(rotateBlock(r, -1)) || points(r) || points(rotateBlock(r, 1));
-        case BLOCK_SWITCH:
-        case BLOCK_BUTTON:
-            return (std::abs(sx - tx) + std::abs(sy - ty)) == 1;
-        default:
-            return false;
+    const BlockOutputs outputs = blockOutputs(block.typeId, block.rotation);
+    for (int i = 0; i < outputs.count; i++) {
+        if (sx + outputs.cells[i].dx == tx && sy + outputs.cells[i].dy == ty) return true;
     }
+    return false;
 }
 }
 
@@ -65,74 +26,13 @@ void Circuit::adjustConnection(int x, int y, int delta,
     affected.insert(key);
 }
 
-void Circuit::adjustConnection(int x, int y, BlockRotation rotation, int l, int delta,
-                               std::unordered_set<long long> &affected) {
-    switch (rotation) {
-        case 0:
-            adjustConnection(x, y + l, delta, affected);
-            break;
-        case 1:
-            adjustConnection(x + l, y, delta, affected);
-            break;
-        case 2:
-            adjustConnection(x, y - l, delta, affected);
-            break;
-        case 3:
-            adjustConnection(x - l, y, delta, affected);
-            break;
-        default:
-            break;
-    }
-}
-
 void Circuit::adjustOutput(const Block &block, long long key, int delta,
                            std::unordered_set<long long> &affected) {
     int x = Block_X(key);
     int y = Block_Y(key);
-    BlockRotation r = block.rotation;
-
-    switch (block.typeId) {
-        case 0: // Straight wire
-        case 7: // NOT
-        case 8: // AND
-        case 9: // NAND
-        case 10: // XOR
-        case 11: // NXOR
-        case BLOCK_CLOCK:
-            adjustConnection(x, y, r, 1, delta, affected);
-            break;
-        case 5: // 2 wire
-            adjustConnection(x, y, r, 2, delta, affected);
-            break;
-        case 6: // 3 wire
-            adjustConnection(x, y, r, 3, delta, affected);
-            break;
-        case 1: // Right angled wire
-            adjustConnection(x, y, r, 1, delta, affected);
-            adjustConnection(x, y, rotateBlock(r, 1), 1, delta, affected);
-            break;
-        case 2: // Left angled wire
-            adjustConnection(x, y, r, 1, delta, affected);
-            adjustConnection(x, y, rotateBlock(r, -1), 1, delta, affected);
-            break;
-        case 3: // T wire
-            adjustConnection(x, y, rotateBlock(r, -1), 1, delta, affected);
-            adjustConnection(x, y, rotateBlock(r, 1), 1, delta, affected);
-            break;
-        case 4: // Cross wire
-            adjustConnection(x, y, rotateBlock(r, -1), 1, delta, affected);
-            adjustConnection(x, y, r, 1, delta, affected);
-            adjustConnection(x, y, rotateBlock(r, 1), 1, delta, affected);
-            break;
-        case BLOCK_SWITCH:
-        case BLOCK_BUTTON:
-            adjustConnection(x + 1, y, delta, affected);
-            adjustConnection(x, y - 1, delta, affected);
-            adjustConnection(x, y + 1, delta, affected);
-            adjustConnection(x - 1, y, delta, affected);
-            break;
-        default: // lamp emits nothing
-            break;
+    const BlockOutputs outputs = blockOutputs(block.typeId, block.rotation);
+    for (int i = 0; i < outputs.count; i++) {
+        adjustConnection(x + outputs.cells[i].dx, y + outputs.cells[i].dy, delta, affected);
     }
 }
 
