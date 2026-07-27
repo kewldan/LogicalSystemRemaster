@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 project(LogicalSystem
         HOMEPAGE_URL https://kewldan.itch.io/logical-system
-        VERSION 2.3.0
+        VERSION 2.4.0
         LANGUAGES CXX
 )
 

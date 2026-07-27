@@ -12,7 +12,7 @@
 [![itch.io](https://img.shields.io/badge/itch.io-logical--system-fa5c5c?style=flat&logo=itchdotio&logoColor=white)](https://kewldan.itch.io/logical-system)
 [![build](https://github.com/kewldan/LogicalSystemRemaster/actions/workflows/build.yml/badge.svg)](https://github.com/kewldan/LogicalSystemRemaster/actions/workflows/build.yml)
 
-A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.3.0). Place logic blocks on an infinite 2D grid, wire them together and simulate whole devices — from a single gate to adders and RAM.
+A remaster of [Logical System](https://kewldan.itch.io/logical-system) (v2.4.0). Place logic blocks on an infinite 2D grid, wire them together and simulate whole devices — from a single gate to adders and RAM.
 
 ## ✨ Features
 
